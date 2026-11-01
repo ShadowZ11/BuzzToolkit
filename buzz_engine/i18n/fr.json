@@ -44,7 +44,7 @@
   "setup.keys_done": "Clés du jeu lues",
   "setup.hook_on": "Ordres de manches perso activés",
   "setup.hook_btn": "Activer les ordres de manches perso",
-  "setup.hook_help": "Modifie une fois les scripts du jeu (avec sauvegarde) : chaque pack joue ses propres manches dans le menu Partie pack quiz.",
+  "setup.hook_help": "Modifie une fois les scripts du jeu (avec sauvegarde) : chaque pack joue ses propres manches dans le menu « Partie pack quiz » (Pack Game), sur chaque version de Quiz World installée.",
   "setup.hook_done": "Ordres de manches perso activés",
   "setup.voices": "Voix du présentateur : {list}",
   "setup.voices_none": "aucune pour l'instant",
@@ -174,7 +174,7 @@
   "list.moved_other": "{n} questions déplacées dans {name}",
 
   "r.title": "Manches",
-  "r.hint": "Ordre des manches quand ce pack est joué depuis le menu Partie pack quiz",
+  "r.hint": "Ordre des manches quand ce pack est joué depuis le menu « Partie pack quiz » (Pack Game)",
   "r.preset": "Modèle",
   "r.preset_choose": "Choisir un modèle…",
   "r.players4": "4 joueurs",

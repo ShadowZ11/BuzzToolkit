@@ -189,24 +189,30 @@ def install(edat, number, a):
 
 
 def cmd_plans(a):
+    from buzz_engine import games
     r = rpcs3_dir(a)
-    target = os.path.join(r, "dev_hdd0", "game", "BCES00645", "USRDIR", "Patched", "GLOBALSCRIPTS.SDAT")
-    base = target + ".before_engine"
+    builds = games.update_folders(r)
+    if not builds:
+        sys.exit("no Buzz! Quiz World game update found in %s" % r)
     overrides = {}
     for item in a.set or []:
         mode, text = item.split("=", 1)
         overrides[mode.strip()] = parse_lineup(text)
     for mode, spec in overrides.items():
         print("%-8s %s" % (mode, rounds.describe(rounds.parse_plan(spec))))
-    out = os.path.join(ROOT, "dlc_test", "GLOBALSCRIPTS_engine.sdat")
-    src = base if os.path.exists(base) else target
-    plans.build_globalscripts(src, out, overrides, custom_rounds=True)
-    print("built", out)
-    if a.install:
-        if not os.path.exists(base):
-            shutil.copy(target, base)                      # keep the pre-engine file to rebuild from
-        shutil.copy(out, target)
-        print("installed", target, "(original kept as %s)" % os.path.basename(base))
+    for title, patched in builds:                          # every build present: the one played reads its own
+        target = os.path.join(patched, "GLOBALSCRIPTS.SDAT")
+        base = target + ".before_engine"
+        out = os.path.join(ROOT, "dlc_test", "GLOBALSCRIPTS_engine_%s.sdat" % title)
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        src = base if os.path.exists(base) else target
+        plans.build_globalscripts(src, out, overrides, custom_rounds=True)
+        print("built", out)
+        if a.install:
+            if not os.path.exists(base):
+                shutil.copy(target, base)                  # keep the pre-engine file to rebuild from
+            shutil.copy(out, target)
+            print("installed", target, "(original kept as %s)" % os.path.basename(base))
 
 
 def cmd_export(a):

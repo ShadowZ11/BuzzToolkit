@@ -13,6 +13,7 @@ dlc_test/
 buzz_engine/settings.json
 buzz_engine/game_keys.json
 buzz_engine/server_config.json
+buzz_engine/cache/
 __pycache__/
 *.pyc
 

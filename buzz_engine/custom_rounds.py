@@ -224,21 +224,28 @@ def add_text(edat_path, klic):
 
 
 def install(rpcs3):
-    """Install the custom rounds into this RPCS3's game update folder."""
-    from buzz_engine import keys, plans
-    patched = os.path.join(rpcs3, "dev_hdd0", "game", "BCES00645", "USRDIR", "Patched")
+    """Install the running order hook and the custom rounds into the game update folder of every
+    Buzz! Quiz World build present in this RPCS3 (BCES00644, BCES00645, BCES00647): the game only
+    reads the scripts of the build being played."""
+    from buzz_engine import games, keys, plans
+    builds = games.update_folders(rpcs3)
+    if not builds:
+        raise ValueError("no Buzz! Quiz World game update found in RPCS3 (dev_hdd0/game/<disc id>/USRDIR/"
+                         "Patched/GLOBALSCRIPTS.SDAT) - install the game update first")
     done = []
-    target = os.path.join(patched, "GLOBALSCRIPTS.SDAT")
-    base = target + ".before_engine"
-    if not os.path.exists(base):
-        shutil.copy(target, base)
-    out = target + ".new"
-    plans.build_globalscripts(base, out, {}, custom_rounds=True)
-    os.replace(out, target)
-    done.append("GLOBALSCRIPTS: Second Best round scripts + round type")
-    for lang in LANG_EDATS:
-        p = os.path.join(patched, lang + ".EDAT")
-        if os.path.exists(p):
-            added = add_text(p, keys.get("klic"))
-            done.append("%s.EDAT: %s" % (lang, "added " + ", ".join(added) if added else "already has the round names"))
+    for title, patched in builds:
+        target = os.path.join(patched, "GLOBALSCRIPTS.SDAT")
+        base = target + ".before_engine"
+        if not os.path.exists(base):
+            shutil.copy(target, base)
+        out = target + ".new"
+        plans.build_globalscripts(base, out, {}, custom_rounds=True)
+        os.replace(out, target)
+        done.append("%s GLOBALSCRIPTS: running order hook, Second Best round scripts + round type" % title)
+        for lang in LANG_EDATS:
+            p = os.path.join(patched, lang + ".EDAT")
+            if os.path.exists(p):
+                added = add_text(p, keys.get("klic"))
+                done.append("%s %s.EDAT: %s" % (title, lang, "added " + ", ".join(added) if added
+                                                else "already has the round names"))
     return done

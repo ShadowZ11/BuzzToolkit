@@ -49,6 +49,15 @@
 * A new pack's default description ("QUESTIONS ON …") was English in every language; it now
   follows the pack's language until you write your own.
 
+## Fixed: custom running orders on every disc
+* **Custom running orders only worked on BCES00645.** The hook went into that build's update
+  folder only, so on BCES00644 (En/Fr/De/It/Nl) and BCES00647 packs always started with the game's
+  own rounds. It now goes into every Quiz World build installed in RPCS3, each built from its own
+  scripts.
+* The Setup box showed "on" as soon as a backup existed, even after a reinstalled game update had
+  put the original scripts back. It now checks the game's scripts themselves, in every build.
+* The French studio names the menu as the game does: *Partie pack quiz*.
+
 ## Buzz! Quiz TV
 * Documented: packs also play on Buzz! Quiz TV, since they install into its download folder. The
   README lists what works there.

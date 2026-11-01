@@ -44,7 +44,7 @@
   "setup.keys_done": "Game keys read",
   "setup.hook_on": "Custom running orders on",
   "setup.hook_btn": "Turn on custom running orders",
-  "setup.hook_help": "One-time change to your game's scripts (backed up): each pack plays its own rounds in the Pack Game menu.",
+  "setup.hook_help": "One-time change to your game's scripts (backed up): each pack plays its own rounds in the Pack Game menu, on every Quiz World build installed.",
   "setup.hook_done": "Custom running orders enabled",
   "setup.voices": "Host voices: {list}",
   "setup.voices_none": "none yet",

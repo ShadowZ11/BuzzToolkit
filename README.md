@@ -93,7 +93,9 @@ In the app's **Setup** box (left-hand side):
 3. **Your decrypted EBOOT:** paste the `USRDIR` path from step 4 and press **Read game keys**.
    A green **Game keys read from your EBOOT** label confirms it.
 4. Optional: **Turn on custom running orders**, so each pack plays its own rounds in the game's
-   *Pack Game* menu. It changes one game script and keeps a backup.
+   *Pack Game* menu (*Partie pack quiz* in French). It changes one game script and keeps a backup,
+   in every Quiz World build installed in RPCS3 (BCES00644, BCES00645, BCES00647) that has its
+   game update. Press it again after reinstalling a game update.
 
 You're ready to make packs. From now on, just double-click **Start Buzz Pack Studio.bat**.
 
@@ -296,7 +298,8 @@ format; it has not been tested as thoroughly.
 
 Every pack can have its own running order for the game's **Pack Game** menu: any of the game's
 rounds, in any order, with optional random picks, ending with the Final Countdown. It needs the
-one-time **Turn on custom running orders** step in the app's Setup box.
+one-time **Turn on custom running orders** step in the app's Setup box. Play the pack on its own
+(*Partie pack quiz* → the pack); *Play all packs* keeps the game's own rounds.
 
 ## Host voice
 

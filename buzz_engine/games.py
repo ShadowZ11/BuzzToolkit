@@ -126,6 +126,21 @@ def installed_games(rpcs3):
     return sorted(out)
 
 
+def update_folders(rpcs3):
+    """-> [(title id, Patched folder)] for every build whose game update is installed in RPCS3.
+
+    The game reads its scripts from the update's USRDIR/Patched folder when one is there, so
+    anything that changes the game's scripts (custom running orders) must go into the folder of
+    the build the user actually plays - which can be any of them, not just BCES00645.
+    """
+    out = []
+    for t in GAMES if rpcs3 else ():
+        p = os.path.join(rpcs3, "dev_hdd0", "game", t, "USRDIR", "Patched")
+        if os.path.isfile(os.path.join(p, "GLOBALSCRIPTS.SDAT")):
+            out.append((t, p))
+    return out
+
+
 def installed_containers(rpcs3):
     """-> [dlc title] of the DLC containers that exist in this RPCS3."""
     if not rpcs3:

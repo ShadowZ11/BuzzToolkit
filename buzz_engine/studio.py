@@ -99,10 +99,10 @@ def number_conflicts(pid, pack):
 
 
 def hook_installed():
-    r = settings().get("rpcs3")
-    if not r:
-        return False
-    return os.path.exists(os.path.join(r, "dev_hdd0", "game", "BCES00645", "USRDIR", "Patched", "GLOBALSCRIPTS.SDAT.before_engine"))
+    """True when every installed Quiz World build really runs the hook (the file itself is checked:
+    a reinstalled game update brings the retail scripts back)."""
+    ups = games.update_folders(settings().get("rpcs3"))
+    return bool(ups) and all(plans.engine_installed(os.path.join(p, "GLOBALSCRIPTS.SDAT")) for _, p in ups)
 
 
 def lineup_text(spec):

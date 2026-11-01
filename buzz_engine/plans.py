@@ -62,9 +62,10 @@ def default_plans(base_sdat=None):
             designs[cur] = []
         if cur:
             designs[cur].append([fn, args])
-    os.makedirs(os.path.dirname(CACHE), exist_ok=True)
-    with open(CACHE, "w") as f:
-        json.dump(designs, f, indent=0)
+    if not os.path.exists(CACHE):          # first build read: lets previews work without a file
+        os.makedirs(os.path.dirname(CACHE), exist_ok=True)
+        with open(CACHE, "w") as f:
+            json.dump(designs, f, indent=0)
     return designs
 
 
@@ -104,6 +105,20 @@ end
 '''
 
 
+ENGINE_MARK = b"BuzzEngineTicketHook"      # a global the hook defines; kept as a string constant
+
+
+def engine_installed(sdat_path):
+    """True if this GLOBALSCRIPTS really carries the per-pack running order hook. Checks the
+    file itself, not the backup next to it: reinstalling the game update puts the retail
+    scripts back and leaves the backup behind."""
+    try:
+        data = next((e.data for e in read_pak(sdat_path) if e.name == GAMEPLANS), b"")
+    except Exception:
+        return False
+    return ENGINE_MARK in data
+
+
 def gameplans_source(overrides=None, hook=True, base_sdat=None):
     """overrides: {mode or design name: plan spec} (see rounds.parse_plan)."""
     designs = default_plans(base_sdat)
@@ -120,7 +135,7 @@ def build_globalscripts(base_path, out_path, overrides=None, hook=True, custom_r
     """Copy of base_path (the user's current GLOBALSCRIPTS .PAK/.SDAT, plain) with a regenerated
     gameplans.clu (+ the custom round types and their scripts when custom_rounds)."""
     entries = read_pak(base_path)
-    src = gameplans_source(overrides, hook, base_path if not os.path.exists(CACHE) else None)
+    src = gameplans_source(overrides, hook, base_path)    # this build's own designs, not the cache
     extra = []
     if custom_rounds:
         from . import custom_rounds as cr
