@@ -217,9 +217,12 @@ def cmd_export(a):
     L.append("")
     from build_pack import row_meta
 
+    names = {t["id"]: t["name"] for t in pack.get("themes", [])}
+
     def about(q, n):
-        s = row_meta(q, n).get("about")
-        return ["S: " + s] if s else []
+        m = row_meta(q, n)
+        return (["S: " + m["about"]] if m.get("about") else []) + (
+            ["T: " + names[m["theme"]]] if m.get("theme") in names else [])
     for q in pack["standard"]:
         L += ["Q: " + q[0]] + about(q, 5) + ["A: " + q[1]] + ["- " + w for w in q[2:5]] + [""]
     for q in pack["picture"]:

@@ -176,8 +176,14 @@ def parse_json(data):
     if isinstance(data, dict) and "results" in data:
         return parse_opentdb(data)
     if isinstance(data, dict) and "standard" in data:                 # our pack JSON
+        names = {t["id"]: t["name"] for t in data.get("themes", [])}
+
         def about(x, n):
-            return {"about": x[n]["about"]} if len(x) > n and isinstance(x[n], dict) and x[n].get("about") else {}
+            m = x[n] if len(x) > n and isinstance(x[n], dict) else {}
+            out = {"about": m["about"]} if m.get("about") else {}
+            if m.get("theme") in names:
+                out["theme"] = names[m["theme"]]
+            return out
         out = [dict({"question": x[0], "correct": x[1], "wrong": x[2:5], "source": "pack"}, **about(x, 5))
                for x in data["standard"]]
         img = data.get("images", [])
@@ -228,7 +234,8 @@ def _from_record(r):
     out = {"question": q, "correct": c, "wrong": list(wrong or [])[:3], "source": "record"}
     for k, names in (("category", ["category", "topic", "subject"]), ("difficulty", ["difficulty", "level"]),
                      ("image", ["image", "picture", "img", "image_url", "photo"]),
-                     ("about", ["about", "sujet", "announce", "annonce", "intro", "sujet_annonce"])):
+                     ("about", ["about", "sujet", "announce", "annonce", "intro", "sujet_annonce"]),
+                     ("theme", ["theme", "thème", "theme_name"])):
         v = _pick(r, names)
         if v:
             out[k] = v
@@ -284,6 +291,8 @@ def parse_text(text):
                 cur["image"], cur["kind"] = s.split(":", 1)[1].strip(), "picture"
             elif cur and re.match(r"^S[:.]\s", s, re.I):
                 cur["about"] = s[2:].strip()
+            elif cur and re.match(r"^T[:.]\s", s, re.I):
+                cur["theme"] = s[2:].strip()
         if cur:
             out.append(cur)
         return out

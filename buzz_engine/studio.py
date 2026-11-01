@@ -26,7 +26,7 @@ sys.path.insert(0, ROOT)
 import build_pack  # noqa: E402
 from buzz_engine import content, game_update, importers, online, pack_numbers, plans, rounds, voices  # noqa: E402
 from buzz_engine.generate import generate, install_edat  # noqa: E402
-from buzz_engine import buzzers, games  # noqa: E402
+from buzz_engine import buzzers, games, i18n  # noqa: E402
 
 PROJECTS = os.path.join(ROOT, "content", "projects")    # pack projects (content/packs = online catalogue)
 SETTINGS = os.path.join(HERE, "settings.json")
@@ -46,6 +46,10 @@ def settings():
     return json.load(open(SETTINGS)) if os.path.exists(SETTINGS) else {}
 
 
+def tr(msg):
+    return i18n.translate(msg, settings().get("ui_lang"))
+
+
 def save_settings(s):
     json.dump(s, open(SETTINGS, "w"), indent=1)
 
@@ -57,7 +61,9 @@ def project_path(pid):
 
 
 def load(pid):
-    return json.load(open(project_path(pid), encoding="utf-8"))
+    pack = json.load(open(project_path(pid), encoding="utf-8"))
+    content.themes(pack)
+    return pack
 
 
 def save(pid, pack):
@@ -117,23 +123,27 @@ def project_view(pid):
         rounds_status.append({"type": t, "name": info["name"], "questions": n, "min": info["min"],
                               "state": "ok" if n >= info["min"] else ("low" if n else "none")})
     qs = []
+    main = pack["themes"][0]["id"]
     for i, q in enumerate(pack["standard"]):
-        qs.append({"kind": "standard", "i": i, "q": q[0], "a": q[1:5], "about": build_pack.row_meta(q, 5).get("about", "")})
+        qs.append({"kind": "standard", "i": i, "q": q[0], "a": q[1:5], "about": build_pack.row_meta(q, 5).get("about", ""),
+                   "theme": build_pack.row_meta(q, 5).get("theme") or main})
     for i, q in enumerate(pack["picture"]):
         qs.append({"kind": "picture", "i": i, "q": q[1], "a": q[2:6], "img": pack["images"][q[0] - 1],
-                   "about": build_pack.row_meta(q, 6).get("about", "")})
+                   "about": build_pack.row_meta(q, 6).get("about", ""),
+                   "theme": build_pack.row_meta(q, 6).get("theme") or main})
     for i, q in enumerate(pack["all_that_apply"]):
         qs.append({"kind": "all_that_apply", "i": i, "q": q[0], "a": [a for a, _ in q[1:5]], "right": [bool(t) for _, t in q[1:5]]})
     for i, q in enumerate(pack["point_stealer"]):
         qs.append({"kind": "point_stealer", "i": i, "q": q[0], "imgs": [pack["images"][n - 1] for n in q[1:5]]})
     return {"id": pid, "title": pack["text"]["menu_name"], "description": pack["text"]["description"],
-            "topic": pack.get("topic", pack["text"]["menu_name"]),
+            "topic": pack["themes"][0]["name"],
+            "themes": [dict(t, questions=sum(1 for q in qs if q.get("theme") == t["id"])) for t in pack["themes"]],
             "number": pack["pack_number"], "category": pack["category"], "language": pack.get("language", "GBR"),
             "audio": pack.get("audio", True), "author": pack.get("author", ""), "uppercase": pack.get("uppercase", True),
             "rounds4p": lineup_text(pack.get("rounds", {}).get("4p")), "rounds8p": lineup_text(pack.get("rounds", {}).get("8p")),
             "counts": counts, "rounds_status": rounds_status, "questions": qs, "credits": pack.get("credits", []),
             "outputs": sorted(os.listdir(os.path.join(PROJECTS, pid, "output"))) if os.path.isdir(os.path.join(PROJECTS, pid, "output")) else [],
-            "number_conflicts": number_conflicts(pid, pack), "free_number": free_number()}
+            "number_conflicts": [tr(c) for c in number_conflicts(pid, pack)], "free_number": free_number()}
 
 
 def state():
@@ -165,6 +175,7 @@ def state():
     import buzz_tools
     return {"ffmpeg": buzz_tools.find_ffmpeg(), "version": __version__, "keys_ready": bool(k.get("klic") and k.get("svomac_salt")), "projects": projects, "languages": langs, "voices": vs, "categories": content.CATEGORIES,
             "round_types": [{"type": k, "name": v["name"], "uses": v["uses"]} for k, v in rounds.selectable().items()],
+            "ui_languages": i18n.languages(), "ui_lang": settings().get("ui_lang"),
             "intros": build_pack.INTROS, "max_about": content.MAX_ABOUT, "max_q_full": build_pack.MAX_Q,
             "presets": {k: lineup_text(v) for k, v in PRESETS.items()}, "rpcs3": settings().get("rpcs3", ""),
             "hook": hook_installed(), "free_number": free_number(),
@@ -206,7 +217,12 @@ def act_save(a):
     pack = load(a["id"])
     if "title" in a:
         t = content.clean(a["title"], True)
-        pack["text"]["menu_name"] = pack["text"]["subject"] = pack["topic"] = t
+        main = pack["themes"][0]
+        if main["name"] == pack["text"]["menu_name"]:          # never renamed: follows the title
+            main["name"] = pack["text"]["subject"] = pack["topic"] = t
+        if pack["text"]["description"] == build_pack.DEFAULT_DESCRIPTION % pack["text"]["menu_name"]:
+            pack["text"]["description"] = build_pack.DEFAULT_DESCRIPTION % t
+        pack["text"]["menu_name"] = t
     if "description" in a:
         pack["text"]["description"] = content.clean(a["description"], True)
     if "number" in a:
@@ -233,7 +249,7 @@ def act_save(a):
     return project_view(a["id"])
 
 
-def _import(pid, sources, limit=None):
+def _import(pid, sources, limit=None, themes_from_category=False):
     pack = load(pid)
     ppath = project_path(pid)
     qs = []
@@ -241,6 +257,8 @@ def _import(pid, sources, limit=None):
         qs += importers.load(s)
     existing = importers.parse_json(dict(pack, _dir=os.path.dirname(ppath)))
     seen = {content.key(content.normalise(q)) for q in existing}
+    if themes_from_category:
+        qs = [dict(q, theme=q.get("theme") or q.get("category")) for q in qs]
     kept, rejected = content.select(qs, uppercase=pack.get("uppercase", True), limit=limit)
     dup = [q for q in kept if content.key(q) in seen]
     kept = [q for q in kept if content.key(q) not in seen]
@@ -252,7 +270,8 @@ def _import(pid, sources, limit=None):
             reasons[w] = reasons.get(w, 0) + 1
     if dup:
         reasons["already in the pack"] = len(dup)
-    return {"found": len(qs), "added": len(kept), "skipped": reasons, "project": project_view(pid)}
+    return {"found": len(qs), "added": len(kept), "skipped": {tr(k): v for k, v in reasons.items()},
+            "project": project_view(pid)}
 
 
 def act_import(a):
@@ -263,7 +282,8 @@ def act_import(a):
         sources.append(a["online"])
     if a.get("url"):
         sources.append(a["url"])
-    return _import(a["id"], sources, int(a["limit"]) if a.get("limit") else None)
+    return _import(a["id"], sources, int(a["limit"]) if a.get("limit") else None,
+                   bool(a.get("themes_from_category")))
 
 
 def act_add(a):
@@ -272,6 +292,9 @@ def act_add(a):
         q["correct"], q["wrong"] = a["answers"][0], a["answers"][1:4]
         if (a.get("about") or "").strip():
             q["about"] = a["about"]
+        t = next((x for x in content.themes(load(a["id"])) if x["id"] == a.get("theme")), None)
+        if t:
+            q["theme"] = t["name"]
         if a["kind"] == "picture":
             q["image"] = save_upload(a["id"], a["image"]["name"], a["image"]["data"])
     elif a["kind"] == "all_that_apply":
@@ -288,27 +311,97 @@ def act_add(a):
     return project_view(a["id"])
 
 
+META_BASE = {"standard": 5, "picture": 6}
+
+
+def set_meta(pack, kind, i, key, value):
+    base = META_BASE[kind]
+    meta = dict(build_pack.row_meta(pack[kind][i], base))
+    if value:
+        meta[key] = value
+    else:
+        meta.pop(key, None)
+    pack[kind][i] = pack[kind][i][:base] + ([meta] if meta else [])
+
+
+def _items(pack, items):
+    for it in items or []:
+        kind, i = it["kind"], int(it["i"])
+        if kind in META_BASE and 0 <= i < len(pack[kind]):
+            yield kind, i
+
+
 def act_about(a):
     text = content.clean(a.get("about") or "", True)
     if len(text) > content.MAX_ABOUT and text[-1:] not in ("!", "?", ".", ";"):
         raise ValueError("announced subject longer than %d characters" % content.MAX_ABOUT)
     pack = load(a["id"])
     n = 0
-    for it in a.get("items", []):
-        kind, i = it["kind"], int(it["i"])
-        if kind not in ("standard", "picture") or not 0 <= i < len(pack[kind]):
-            continue
-        base = 5 if kind == "standard" else 6
-        row = pack[kind][i][:base]
-        meta = dict(build_pack.row_meta(pack[kind][i], base))
-        if text:
-            meta["about"] = text
-        else:
-            meta.pop("about", None)
-        pack[kind][i] = row + ([meta] if meta else [])
+    for kind, i in _items(pack, a.get("items")):
+        set_meta(pack, kind, i, "about", text)
         n += 1
     save(a["id"], pack)
     return dict(project_view(a["id"]), changed=n)
+
+
+def act_assign(a):
+    pack = load(a["id"])
+    if a["theme"] not in {t["id"] for t in pack["themes"]}:
+        raise ValueError("unknown theme")
+    main = pack["themes"][0]["id"]
+    n = 0
+    for kind, i in _items(pack, a.get("items")):
+        set_meta(pack, kind, i, "theme", None if a["theme"] == main else a["theme"])
+        n += 1
+    save(a["id"], pack)
+    return dict(project_view(a["id"]), changed=n)
+
+
+def _sync_main(pack):
+    pack["text"]["subject"] = pack["topic"] = pack["themes"][0]["name"]
+    pack["subject_key"] = pack["themes"][0]["subject_key"]
+
+
+def act_theme(a):
+    """op: add {name} | rename {theme, name} | delete {theme} | main {theme}.
+    A question with no theme id belongs to the main (first) theme."""
+    pack = load(a["id"])
+    ts = pack["themes"]
+    op = a["op"]
+    t = next((x for x in ts if x["id"] == a.get("theme")), None)
+    if op != "add" and not t:
+        raise ValueError("unknown theme")
+    name = content.clean(a.get("name") or "", True)
+    if op in ("add", "rename"):
+        if not name:
+            raise ValueError("give the theme a name")
+        if any(x["name"].lower() == name.lower() and x is not t for x in ts):
+            raise ValueError("there is already a theme called %s" % name)
+    if op == "add":
+        content.theme_for(pack, name)
+    elif op == "rename":
+        t["name"] = name                 # subject key kept, so an installed pack still matches
+    elif op == "delete":
+        if len(ts) == 1:
+            raise ValueError("a pack needs at least one theme")
+        for kind in META_BASE:
+            for i, row in enumerate(pack[kind]):
+                if build_pack.row_meta(row, META_BASE[kind]).get("theme") == t["id"]:
+                    set_meta(pack, kind, i, "theme", None)
+        ts.remove(t)
+    elif op == "main":
+        old = ts[0]["id"]
+        for kind in META_BASE:
+            for i, row in enumerate(pack[kind]):
+                tid = build_pack.row_meta(row, META_BASE[kind]).get("theme") or old
+                set_meta(pack, kind, i, "theme", None if tid == t["id"] else tid)
+        ts.remove(t)
+        ts.insert(0, t)
+    else:
+        raise ValueError("unknown theme operation")
+    _sync_main(pack)
+    save(a["id"], pack)
+    return project_view(a["id"])
 
 
 def act_delete(a):
@@ -328,10 +421,10 @@ def act_generate(a):
             pack = load(a["id"])
             j["result"] = generate(project_path(a["id"]), language=a.get("language") or pack.get("language"),
                                    audio=bool(a.get("audio", pack.get("audio", True))),
-                                   progress=lambda m: j["log"].append(m), rpcs3=settings().get("rpcs3"))
+                                   progress=lambda m: j["log"].append(tr(m)), rpcs3=settings().get("rpcs3"))
         except (Exception, SystemExit) as e:          # SystemExit too: a job must always finish
-            j["error"] = str(e)
-            j["log"].append("FAILED: %s" % e)
+            j["error"] = tr(str(e))
+            j["log"].append(tr("FAILED: %s" % e))
             if not isinstance(e, (RuntimeError, ValueError)):   # those carry a plain-English message
                 j["log"].append(traceback.format_exc()[-1500:])
         j["done"] = True
@@ -353,6 +446,8 @@ def act_install(a):
 
 def act_settings(a):
     s = settings()
+    if a.get("ui_lang") in {l["code"] for l in i18n.languages()}:
+        s["ui_lang"] = a["ui_lang"]
     if "rpcs3" in a:
         if not os.path.isdir(os.path.join(a["rpcs3"], "dev_hdd0")):
             raise ValueError("that folder has no dev_hdd0 - pick the folder that contains rpcs3.exe")
@@ -455,7 +550,7 @@ def act_setup_pc(a):
 
 
 ACTIONS = {"new": act_new, "save": act_save, "import": act_import, "add": act_add, "delete": act_delete,
-           "about": act_about,
+           "about": act_about, "assign": act_assign, "theme": act_theme,
            "generate": act_generate, "install": act_install, "settings": act_settings, "hook": act_hook,
            "open": act_open, "opentdb": act_opentdb, "publish": act_publish, "server": act_server,
            "catalog": act_catalog, "setup_pc": act_setup_pc, "keys": act_keys, "ffmpeg": act_ffmpeg,
@@ -481,6 +576,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path in ("/", "/index.html"):
                 return self._send(200, open(os.path.join(HERE, "studio.html"), "rb").read(), "text/html; charset=utf-8")
+            if u.path.startswith("/i18n/") and u.path.endswith(".json"):
+                c = i18n.catalog(u.path[6:-5])
+                return self._send(200, {"ui": c.get("ui", {})}) if c else self._send(404, {"error": "not found"})
             if u.path == "/api/state":
                 return self._send(200, state())
             if u.path == "/api/project":
@@ -492,7 +590,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, open(p, "rb").read(), "image/png")
             self._send(404, {"error": "not found"})
         except Exception as e:
-            self._send(400, {"error": str(e)})
+            self._send(400, {"error": tr(str(e))})
 
     def do_POST(self):
         u = urlparse(self.path)
@@ -504,7 +602,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, {"error": "unknown action"})
             self._send(200, ACTIONS[name](a))
         except Exception as e:
-            self._send(400, {"error": str(e)})
+            self._send(400, {"error": tr(str(e))})
 
 
 def main(port=8765, open_browser=True):

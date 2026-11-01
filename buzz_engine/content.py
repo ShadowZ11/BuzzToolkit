@@ -7,8 +7,9 @@ A question (dict):
   correct     right answer (standard/picture)       answers + right[] for all_that_apply
   wrong       3 wrong answers                        images[4] + correct index for point_stealer
   category, difficulty ("easy"|"medium"|"hard"), image (path/URL), source (where it came from)
-  about       optional (standard/picture): subject announced in High Stakes, stored as a trailing
-              {"about": ...} on the pack row
+  about       optional (standard/picture): subject announced in High Stakes
+  theme       optional: theme name; the pack keeps {"themes": [{id, name, subject_key}]} and a
+              question row stores the theme id. about and theme go in a trailing dict on the row
 """
 import hashlib
 import html
@@ -135,10 +136,11 @@ def normalise(q, uppercase=False):
         q["answers"] = [clean(a, uppercase) for a in q.get("answers", [])]
     if q.get("difficulty") is not None:
         q["difficulty"] = {1: "easy", 2: "medium", 3: "hard"}.get(DIFFICULTY.get(str(q["difficulty"]).lower()), None)
-    if q.get("about"):
-        q["about"] = clean(q["about"], True)
-    else:
-        q.pop("about", None)
+    for k in ("about", "theme"):
+        if q.get(k):
+            q[k] = clean(q[k], True)
+        else:
+            q.pop(k, None)
     return q
 
 
@@ -201,18 +203,54 @@ def slug(s, n):
     return (re.sub(r"[^a-z0-9]", "", s.lower()) or "custom")[:n]
 
 
+def subject_key(name):
+    plain = unicodedata.normalize("NFKD", name.upper()).encode("ascii", "ignore").decode()
+    return "SUBJECT_" + (re.sub(r"[^A-Z0-9]+", "_", plain).strip("_")[:40] or "THEME")
+
+
+def themes(pack):
+    """The pack's themes, created from its subject for packs made before themes existed."""
+    if not pack.get("themes"):
+        name = pack.get("text", {}).get("subject") or pack.get("topic") or "QUIZ"
+        pack["themes"] = [{"id": "t1", "name": name,
+                           "subject_key": pack.get("subject_key") or subject_key(name)}]
+    return pack["themes"]
+
+
+def theme_for(pack, name):
+    """The theme called `name` (case-insensitive), added to the pack if it has none by that name."""
+    name = clean(name, True)
+    ts = themes(pack)
+    for t in ts:
+        if t["name"].lower() == name.lower():
+            return t
+    ids = {t["id"] for t in ts}
+    keys = {t["subject_key"] for t in ts}
+    n = len(ts) + 1
+    while "t%d" % n in ids:
+        n += 1
+    key, k = subject_key(name), 2
+    while key in keys:
+        key, k = "%s_%d" % (subject_key(name)[:45], k), k + 1
+    t = {"id": "t%d" % n, "name": name, "subject_key": key}
+    ts.append(t)
+    return t
+
+
 def new_pack(title, pack_number, category="Knowledge", description=None, uppercase=True):
     """Metadata for a new pack JSON (content lists empty)."""
     if category not in CATEGORIES:
         raise ValueError("category must be one of %s" % ", ".join(CATEGORIES))
     t = clean(title, True)
     name = slug(title, 10) + str(pack_number)
+    key = subject_key(t)
     return {
         "pack_number": int(pack_number),
         "text": {"subject": t, "description": clean(description or ("QUESTIONS ON " + t), True),
                  "menu_name": t},
         "topic": t,
-        "subject_key": "SUBJECT_" + re.sub(r"[^A-Z0-9]+", "_", t).strip("_")[:40],
+        "subject_key": key,
+        "themes": [{"id": "t1", "name": t, "subject_key": key}],
         "round_name": name,
         "key_tag": str(pack_number),
         "category": category,
@@ -260,7 +298,12 @@ def add_to_pack(pack, questions, pack_dir):
         if c and c not in credits:
             credits.append(c)
         k = q["kind"]
-        meta = [{"about": q["about"]}] if q.get("about") else []
+        m = {"about": q["about"]} if q.get("about") else {}
+        if q.get("theme") and k in ("standard", "picture"):
+            tid = theme_for(pack, q["theme"])["id"]
+            if tid != themes(pack)[0]["id"]:
+                m["theme"] = tid
+        meta = [m] if m else []
         if k == "standard":
             pack["standard"].append([q["question"], q["correct"]] + q["wrong"][:3] + meta)
         elif k == "picture":

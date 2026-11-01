@@ -28,7 +28,7 @@ body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.5 "Segoe UI 
 h1,h2,h3{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;margin:0;line-height:1.2;text-wrap:balance}
 button,input,select,textarea{font:inherit;color:inherit}
 .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-aside{background:var(--panel);border-right:1px solid var(--rule);padding:20px 16px;display:flex;flex-direction:column;gap:18px}
+aside{background:var(--panel);border-right:1px solid var(--rule);padding:20px 16px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto}
 .brand{display:flex;align-items:center;gap:12px}
 .buzzer{width:38px;height:38px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ff8a97,var(--red) 55%,#8e1224);box-shadow:0 3px 0 #6d0f1c;flex:none}
 .brand h1{font-size:1.15rem;font-weight:800;letter-spacing:.01em}
@@ -105,26 +105,29 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .empty{padding:60px 20px;text-align:center;color:var(--muted)}
 .switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .switch input{width:18px;height:18px;accent-color:var(--red)}
-@media (max-width:820px){.app{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--rule)}main{padding:20px 16px 60px}.answers{grid-template-columns:1fr}}
+@media (max-width:820px){.app{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--rule);position:static;height:auto;overflow:visible}main{padding:20px 16px 60px}.answers{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.themes{display:flex;flex-direction:column;gap:6px}
+.bulk{display:flex;flex-direction:column;gap:8px;background:var(--ground);border:1px solid var(--rule);border-radius:10px;padding:10px 12px}
 </style>
 </head>
 <body>
 <div class="app">
 <aside>
-  <div class="brand"><div class="buzzer" aria-hidden="true"></div><div><h1>Buzz Pack Studio</h1><small>Custom quiz packs for Buzz! Quiz World <span id="ver"></span></small></div></div>
-  <button class="btn" id="srvbtn" style="justify-content:space-between;display:flex;align-items:center"><span>Online server</span><span class="pill" id="srvpill">…</span></button>
-  <button class="btn" id="bbbtn" style="justify-content:space-between;display:flex;align-items:center"><span>Big Button buzzers</span><span class="pill" id="bbpill">…</span></button>
-  <div class="label">Your packs</div>
+  <div class="brand"><div class="buzzer" aria-hidden="true"></div><div><h1>Buzz Pack Studio</h1><small><span data-i18n="brand.tagline"></span> <span id="ver"></span></small></div></div>
+  <button class="btn" id="srvbtn" style="justify-content:space-between;display:flex;align-items:center"><span data-i18n="nav.server"></span><span class="pill" id="srvpill">…</span></button>
+  <button class="btn" id="bbbtn" style="justify-content:space-between;display:flex;align-items:center"><span data-i18n="nav.buzzers"></span><span class="pill" id="bbpill">…</span></button>
+  <div class="label" data-i18n="nav.packs"></div>
   <div class="plist" id="plist"></div>
   <form id="newform" class="row" style="gap:6px">
-    <input type="text" id="newtitle" placeholder="New pack name" aria-label="New pack name" style="flex:1;min-width:0">
-    <button class="btn primary small" type="submit">Create</button>
+    <input type="text" id="newtitle" data-i18n-ph="nav.new_name" data-i18n-aria="nav.new_name" style="flex:1;min-width:0">
+    <button class="btn primary small" type="submit" data-i18n="nav.create"></button>
   </form>
   <div class="side-foot">
-    <div class="label">Setup</div>
-    <label class="f">RPCS3 folder<input type="text" id="rpcs3" placeholder="folder containing rpcs3.exe"></label>
-    <button class="btn small" id="saverpcs3">Save folder</button>
+    <label class="f"><span data-i18n="ui.language"></span><select id="uilang"></select></label>
+    <div class="label" data-i18n="setup.title"></div>
+    <label class="f"><span data-i18n="setup.rpcs3"></span><input type="text" id="rpcs3" data-i18n-ph="setup.rpcs3_ph"></label>
+    <button class="btn small" id="saverpcs3" data-i18n="setup.save_folder"></button>
     <div id="gamesbox" style="margin-top:.4rem"></div>
     <div id="updbox"></div>
     <div id="ffbox"></div>
@@ -133,155 +136,223 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
     <div id="voicebox" class="muted"></div>
   </div>
 </aside>
-<main id="main"><div class="empty">Create a pack on the left, or pick one to keep working on it.</div></main>
+<main id="main"><div class="empty" data-i18n="main.empty"></div></main>
 </div>
 <div id="toast" class="toast" hidden></div>
 
 <script>
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-let S = null, P = null, qtab = "import", addKind = "standard", qfilter = "all", job = null, lastResult = null;
+let S = null, P = null, qtab = "import", addKind = "standard", qfilter = "all", qtheme = "all", job = null, lastResult = null, page = null;
 const OTQA = ["general","animals","brain-teasers","celebrities","entertainment","for-kids","geography","history","hobbies","humanities","literature","movies","music","newest","people","rated","religion-faith","science-technology","sports","television","video-games","world"];
-const KINDS = {standard:"Standard", picture:"Picture", all_that_apply:"All That Apply", point_stealer:"Point Stealer"};
+const KIND_KEYS = ["standard","picture","all_that_apply","point_stealer"];
 
-function toast(msg, err=false){const t=$("#toast");t.textContent=msg;t.className="toast"+(err?" err":"");t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>t.hidden=true,err?7000:3500);}
+// ---------- translations (buzz_engine/i18n/<code>.json)
+let L = {}, EN = {}, LANG = "en";
+function t(key, params){
+  let s = L[key] ?? EN[key] ?? key;
+  if(params) s = s.replace(/\{(\w+)\}/g, (m, k) => params[k] ?? m);
+  return s;
+}
+const tn = (key, n, params) => t(key + (n === 1 ? "_one" : "_other"), Object.assign({n}, params));
+const kindName = k => t("kind." + k);
+const roundType = name => (S.round_types.find(r => r.name === name) || {}).type;
+const rn = name => { const k = "round." + roundType(name); return (L[k] ?? EN[k]) || name; };
+async function loadLang(code){
+  const get = async c => { try{ const r = await fetch("/i18n/" + c + ".json"); return r.ok ? (await r.json()).ui || {} : {}; }catch(e){ return {}; } };
+  EN = await get("en");
+  L = code === "en" ? EN : await get(code);
+  LANG = code;
+  document.documentElement.lang = code;
+  document.querySelectorAll("[data-i18n]").forEach(e => e.innerHTML = t(e.dataset.i18n));
+  document.querySelectorAll("[data-i18n-ph]").forEach(e => e.placeholder = t(e.dataset.i18nPh));
+  document.querySelectorAll("[data-i18n-aria]").forEach(e => e.setAttribute("aria-label", t(e.dataset.i18nAria)));
+}
+function pickLang(){
+  const have = (S.ui_languages || []).map(l => l.code);
+  if(S.ui_lang && have.includes(S.ui_lang)) return S.ui_lang;
+  const nav = (navigator.languages || [navigator.language || "en"]).map(x => x.slice(0, 2).toLowerCase());
+  return nav.find(c => have.includes(c)) || "en";
+}
+
+function toast(msg, err=false){const e=$("#toast");e.textContent=msg;e.className="toast"+(err?" err":"");e.hidden=false;clearTimeout(e._h);e._h=setTimeout(()=>e.hidden=true,err?7000:3500);}
 async function api(path, body){
   const r = await fetch(path, body===undefined?{}:{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  const j = await r.json(); if(!r.ok || j.error){toast(j.error||"Something went wrong", true); throw new Error(j.error);} return j;
+  const j = await r.json(); if(!r.ok || j.error){toast(j.error||t("err.generic"), true); throw new Error(j.error);} return j;
 }
 // mirrors build_pack.intro_line
-function introLine(about, k=0){
+function introLine(about, k=0, theme=""){
   about = (about||"").trim().toUpperCase();
   const max = S.max_q_full || 115;
   if(about && "!?.;".includes(about.slice(-1))) return about.slice(0, max);
-  const t = S.intros[P.language] || S.intros.GBR;
-  const ch = (about ? t.about : (t.theme || t.about)), fill = about || (P.topic||"").toUpperCase();
+  const tp = S.intros[P.language] || S.intros.GBR;
+  const ch = (about ? tp.about : (tp.theme || tp.about)), fill = about || (theme || P.topic || "").toUpperCase();
   for(let j=0;j<ch.length;j++){ const s = ch[(k+j)%ch.length].replace("%s", fill); if(s.length<=max) return s; }
   return fill.slice(0, max);
 }
+const themeName = id => (P.themes.find(x => x.id === id) || P.themes[0]).name;
+// api() already showed the error in a toast; the rejection only stops the caller
+window.addEventListener("unhandledrejection", e => e.preventDefault());
 const readFile = f => new Promise(res=>{const r=new FileReader();r.onload=()=>res({name:f.name,data:r.result});r.readAsDataURL(f);});
 
 async function loadState(){ S = await api("/api/state"); renderSide(); }
 function renderSide(){
   $("#ver").textContent = S.version ? "· v" + S.version : "";
-  $("#plist").innerHTML = S.projects.length ? S.projects.map(p=>`<button class="${P&&P.id===p.id?"on":""}" data-id="${p.id}"><span>${esc(p.title)}</span><span class="n">#${p.number} · ${p.questions}q</span></button>`).join("") : `<span class="muted">No packs yet.</span>`;
+  $("#uilang").innerHTML = (S.ui_languages||[]).map(l=>`<option value="${l.code}" ${l.code===LANG?"selected":""}>${esc(l.name)}</option>`).join("");
+  $("#plist").innerHTML = S.projects.length ? S.projects.map(p=>`<button class="${P&&P.id===p.id?"on":""}" data-id="${p.id}"><span>${esc(p.title)}</span><span class="n">#${p.number} · ${t("nav.q_short", {n:p.questions})}</span></button>`).join("") : `<span class="muted">${t("nav.no_packs")}</span>`;
   $("#plist").querySelectorAll("button").forEach(b=>b.onclick=()=>openProject(b.dataset.id));
   $("#rpcs3").value = S.rpcs3 || "";
-  $("#hookbox").innerHTML = S.hook ? `<span class="pill ok">Custom running orders on</span>` :
-    `<button class="btn small" id="hookbtn">Turn on custom running orders</button><div class="muted" style="font-size:.8rem">One-time change to your game's scripts (backed up): each pack plays its own rounds in the Pack Game menu.</div>`;
-  const hb = $("#hookbtn"); if(hb) hb.onclick = async()=>{ S = await api("/api/hook",{}); renderSide(); toast("Custom running orders enabled"); };
+  $("#hookbox").innerHTML = S.hook ? `<span class="pill ok">${t("setup.hook_on")}</span>` :
+    `<button class="btn small" id="hookbtn">${t("setup.hook_btn")}</button><div class="muted" style="font-size:.8rem">${t("setup.hook_help")}</div>`;
+  const hb = $("#hookbtn"); if(hb) hb.onclick = async()=>{ S = await api("/api/hook",{}); renderSide(); toast(t("setup.hook_done")); };
   const U = S.update || {};
   const gb = $("#gamesbox");
-  if (gb) gb.innerHTML = !S.rpcs3 ? "" : (S.games && S.games.length)
+  if (gb) gb.innerHTML = !S.rpcs3 ? "" : ((S.games && S.games.length)
     ? S.games.map(g=>`<span class="pill ok">${esc(g.name)}</span>`).join(" ")
-    : `<div class="muted" style="font-size:.8rem">No Buzz DLC folder in this RPCS3 yet - it is created when you send a pack.</div>`;
-  if (gb && S.rpcs3) gb.innerHTML += `<div class="muted" style="font-size:.8rem">Packs also play on <b>Buzz! Quiz TV</b>: they install into its download folder.</div>`;
-  $("#updbox").innerHTML = !S.rpcs3 ? "" : U.ok ? `<span class="pill ok">Game update ${esc(U.want)} installed</span>` :
-    `<div class="warn" style="font-size:.85rem">Game update ${esc(U.want)} ${U.installed ? "needed (you have " + esc(U.installed) + ")" : "not installed"}. The toolkit is built on it.</div>` +
-    (U.downloaded ? `<button class="btn small" id="updinst">Install update into RPCS3</button><div class="muted" style="font-size:.8rem">Close RPCS3 first. RPCS3's own installer opens; when it's done, press Save folder to re-check.</div>`
-                  : `<button class="btn small" id="upddl">Download update from Sony</button><div class="muted" style="font-size:.8rem">Fetches the official ${esc(U.want)} update (22 MB) straight from Sony's PS3 update server and checks it.</div>`);
-  const ud = $("#upddl"); if(ud) ud.onclick = async()=>{ ud.disabled=true; ud.textContent="Downloading…"; try{ S = await api("/api/update",{}); renderSide(); toast("Update downloaded"); }catch(e){ ud.disabled=false; ud.textContent="Download update from Sony"; } };
-  const ui = $("#updinst"); if(ui) ui.onclick = async()=>{ await api("/api/update",{op:"install"}); toast("RPCS3's installer is opening"); };
-  $("#ffbox").innerHTML = S.ffmpeg ? `<span class="pill ok">ffmpeg found</span>` :
-    `<button class="btn small" id="ffbtn">Download ffmpeg</button><div class="muted" style="font-size:.8rem">Needed to build packs (pictures, audio). Free LGPL build, about 100 MB, saved inside the toolkit.</div>`;
-  const fb = $("#ffbtn"); if(fb) fb.onclick = async()=>{ fb.disabled=true; fb.textContent="Downloading…"; try{ S = await api("/api/ffmpeg",{}); renderSide(); toast("ffmpeg ready"); }catch(e){ fb.disabled=false; fb.textContent="Download ffmpeg"; } };
-  $("#keysbox").innerHTML = S.keys_ready ? `<span class="pill ok">Game keys read from your EBOOT</span>` :
-    `<label class="f">Your decrypted EBOOT (.elf)<input type="text" id="ebootk" placeholder="RPCS3: Utilities → Decrypt PS3 Binaries"></label><button class="btn small" id="keysbtn">Read game keys</button><div class="muted" style="font-size:.8rem">Needed once: packs are encrypted with the game's own key, which the toolkit doesn't ship.</div>`;
-  const kb = $("#keysbtn"); if(kb) kb.onclick = async()=>{ S = await api("/api/keys",{eboot:$("#ebootk").value.trim()}); renderSide(); toast("Game keys read"); };
-  $("#voicebox").innerHTML = "Host voices: " + (S.voices.length ? S.voices.map(v=>`${esc(v.lang)}${v.trained?" (trained)":""}`).join(", ") : "none yet");
+    : `<div class="muted" style="font-size:.8rem">${t("setup.no_dlc")}</div>`)
+    + `<div class="muted" style="font-size:.8rem">${t("setup.quiztv")}</div>`;
+  $("#updbox").innerHTML = !S.rpcs3 ? "" : U.ok ? `<span class="pill ok">${t("setup.update_ok", {v:esc(U.want)})}</span>` :
+    `<div class="warn" style="font-size:.85rem">${U.installed ? t("setup.update_old", {v:esc(U.want), have:esc(U.installed)}) : t("setup.update_missing", {v:esc(U.want)})}</div>` +
+    (U.downloaded ? `<button class="btn small" id="updinst">${t("setup.update_install")}</button><div class="muted" style="font-size:.8rem">${t("setup.update_install_help")}</div>`
+                  : `<button class="btn small" id="upddl">${t("setup.update_download")}</button><div class="muted" style="font-size:.8rem">${t("setup.update_download_help", {v:esc(U.want)})}</div>`);
+  const ud = $("#upddl"); if(ud) ud.onclick = async()=>{ ud.disabled=true; ud.textContent=t("common.downloading"); try{ S = await api("/api/update",{}); renderSide(); toast(t("setup.update_downloaded")); }catch(e){ ud.disabled=false; ud.textContent=t("setup.update_download"); } };
+  const ui = $("#updinst"); if(ui) ui.onclick = async()=>{ await api("/api/update",{op:"install"}); toast(t("setup.update_opening")); };
+  $("#ffbox").innerHTML = S.ffmpeg ? `<span class="pill ok">${t("setup.ffmpeg_ok")}</span>` :
+    `<button class="btn small" id="ffbtn">${t("setup.ffmpeg_btn")}</button><div class="muted" style="font-size:.8rem">${t("setup.ffmpeg_help")}</div>`;
+  const fb = $("#ffbtn"); if(fb) fb.onclick = async()=>{ fb.disabled=true; fb.textContent=t("common.downloading"); try{ S = await api("/api/ffmpeg",{}); renderSide(); toast(t("setup.ffmpeg_done")); }catch(e){ fb.disabled=false; fb.textContent=t("setup.ffmpeg_btn"); } };
+  $("#keysbox").innerHTML = S.keys_ready ? `<span class="pill ok">${t("setup.keys_ok")}</span>` :
+    `<label class="f">${t("setup.keys_label")}<input type="text" id="ebootk" placeholder="${esc(t("setup.keys_ph"))}"></label><button class="btn small" id="keysbtn">${t("setup.keys_btn")}</button><div class="muted" style="font-size:.8rem">${t("setup.keys_help")}</div>`;
+  const kb = $("#keysbtn"); if(kb) kb.onclick = async()=>{ S = await api("/api/keys",{eboot:$("#ebootk").value.trim()}); renderSide(); toast(t("setup.keys_done")); };
+  $("#voicebox").innerHTML = t("setup.voices", {list: S.voices.length ? S.voices.map(v=>`${esc(v.lang)}${v.trained?" "+t("setup.voice_trained"):""}`).join(", ") : t("setup.voices_none")});
 }
-$("#saverpcs3").onclick = async()=>{ S = await api("/api/settings",{rpcs3:$("#rpcs3").value.trim()}); renderSide(); toast("RPCS3 folder saved"); };
-$("#newform").onsubmit = async e=>{ e.preventDefault(); const t=$("#newtitle").value.trim(); if(!t) return;
-  const r = await api("/api/new",{title:t, number:S.free_number}); $("#newtitle").value=""; await loadState(); openProject(r.id); };
+$("#uilang").onchange = async e=>{
+  S = await api("/api/settings",{ui_lang:e.target.value});
+  await loadLang(e.target.value); renderSide();
+  if(P){ P = await api("/api/project?id="+encodeURIComponent(P.id)); render(); }
+  else if(page==="server") renderServer(); else if(page==="buzzers") renderBuzzers();
+};
+$("#saverpcs3").onclick = async()=>{ S = await api("/api/settings",{rpcs3:$("#rpcs3").value.trim()}); renderSide(); toast(t("setup.saved")); };
+$("#newform").onsubmit = async e=>{ e.preventDefault(); const v=$("#newtitle").value.trim(); if(!v) return;
+  const r = await api("/api/new",{title:v, number:S.free_number}); $("#newtitle").value=""; await loadState(); openProject(r.id); };
 
-async function openProject(id){ P = await api("/api/project?id="+encodeURIComponent(id)); lastResult=null; renderSide(); render(); }
+async function openProject(id){ page=null; P = await api("/api/project?id="+encodeURIComponent(id)); lastResult=null; qtheme="all"; renderSide(); render(); }
 async function save(fields){ P = await api("/api/save", Object.assign({id:P.id}, fields)); renderRoundsStatus(); }
+function totalQ(){ return P.counts.standard+P.counts.picture+P.counts.all_that_apply+P.counts.point_stealer; }
 
 function render(){
   const m = $("#main");
-  const langOpts = S.languages.map(l=>`<option value="${l.code}" ${P.language===l.code?"selected":""}>${esc(l.name)} (${l.code})${l.voice?" · host voice":""}</option>`).join("");
+  const langOpts = S.languages.map(l=>`<option value="${l.code}" ${P.language===l.code?"selected":""}>${esc(t("lang."+l.code) === "lang."+l.code ? l.name : t("lang."+l.code))} (${l.code})${l.voice?" · "+t("pack.has_voice"):""}</option>`).join("");
   m.innerHTML = `
-  <div class="head"><div><h2>${esc(P.title)}</h2><div class="sub">Pack #${P.number} · ${P.counts.standard+P.counts.picture+P.counts.all_that_apply+P.counts.point_stealer} questions</div></div></div>
+  <div class="head"><div><h2>${esc(P.title)}</h2><div class="sub"></div></div></div>
 
-  <section class="step"><header><span class="num">1</span><h3>Pack</h3><span class="hint">How it appears in the game's menus</span></header>
+  <section class="step"><header><span class="num">1</span><h3>${t("pack.title")}</h3><span class="hint">${t("pack.hint")}</span></header>
     <div class="grid">
-      <label class="f">Name<input type="text" id="f-title" value="${esc(P.title)}"></label>
-      <label class="f">Channel<select id="f-cat">${S.categories.map(c=>`<option ${P.category===c?"selected":""}>${c}</option>`).join("")}</select></label>
-      <label class="f">Language<select id="f-lang">${langOpts}</select></label>
-      <label class="f">Made by<input type="text" id="f-author" value="${esc(P.author)}" placeholder="optional, shown in the credits"></label>
-      <label class="f">Pack number<input type="number" id="f-num" min="1" max="999" value="${P.number}"></label>
+      <label class="f">${t("pack.name")}<input type="text" id="f-title" value="${esc(P.title)}"></label>
+      <label class="f">${t("pack.channel")}<select id="f-cat">${S.categories.map(c=>`<option value="${c}" ${P.category===c?"selected":""}>${t("channel."+c)}</option>`).join("")}</select></label>
+      <label class="f">${t("pack.language")}<select id="f-lang">${langOpts}</select></label>
+      <label class="f">${t("pack.author")}<input type="text" id="f-author" value="${esc(P.author)}" placeholder="${esc(t("pack.author_ph"))}"></label>
+      <label class="f">${t("pack.number")}<input type="number" id="f-num" min="1" max="999" value="${P.number}"></label>
     </div>
+    <div class="muted" style="font-size:.8rem">${t("pack.channel_help")}</div>
     <div id="gametarget" class="muted" style="font-size:.82rem;margin:.3rem 0"></div>
-    <div class="muted" style="font-size:.8rem">Every pack needs its own number. Installing a pack replaces any other pack with the same number, so the app won't let you pick one that's already installed in RPCS3 or used by another of your packs.</div>
+    <div class="muted" style="font-size:.8rem">${t("pack.number_help")}</div>
     <div id="numwarn"></div>
-    <label class="f">Description<input type="text" id="f-desc" value="${esc(P.description)}"></label>
-    <label class="switch"><input type="checkbox" id="f-audio" ${P.audio?"checked":""}> Host reads the questions aloud <span class="muted" id="voicenote"></span></label>
+    <label class="f">${t("pack.description")}<input type="text" id="f-desc" value="${esc(P.description)}"></label>
+    <label class="switch"><input type="checkbox" id="f-audio" ${P.audio?"checked":""}> ${t("pack.audio")} <span class="muted" id="voicenote"></span></label>
+    <div><div class="label" style="margin-bottom:4px">${t("themes.title")}</div>
+      <div class="muted" style="font-size:.8rem;margin-bottom:8px">${t("themes.help")}</div>
+      <div id="themes" class="themes"></div></div>
   </section>
 
-  <section class="step"><header><span class="num">2</span><h3>Questions</h3><span class="hint">Import files or online sources, or write your own</span></header>
-    <div class="tabs" id="qtabs">${["import","add","list"].map(t=>`<button data-t="${t}" class="${qtab===t?"on":""}">${{import:"Import",add:"Write a question",list:"All questions ("+P.questions.length+")"}[t]}</button>`).join("")}</div>
+  <section class="step"><header><span class="num">2</span><h3>${t("q.title")}</h3><span class="hint">${t("q.hint")}</span></header>
+    <div class="tabs" id="qtabs"></div>
     <div id="qbody"></div>
   </section>
 
-  <section class="step"><header><span class="num">3</span><h3>Rounds</h3><span class="hint">Running order when this pack is played from the Pack Game menu</span></header>
-    <div class="row"><span class="label">Preset</span><select id="preset"><option value="">Choose a preset…</option>${Object.keys(S.presets).map(k=>`<option>${esc(k)}</option>`).join("")}</select></div>
-    <div><div class="label" style="margin-bottom:8px">4 players · <span id="count4"></span></div><div class="track" id="track4p"></div></div>
-    <div><div class="label" style="margin-bottom:8px">8 players · <span id="count8"></span></div><div class="track" id="track8p"></div></div>
+  <section class="step"><header><span class="num">3</span><h3>${t("r.title")}</h3><span class="hint">${t("r.hint")}</span></header>
+    <div class="row"><span class="label">${t("r.preset")}</span><select id="preset"><option value="">${t("r.preset_choose")}</option>${Object.keys(S.presets).map(k=>`<option value="${esc(k)}">${esc(t("preset."+k) === "preset."+k ? k : t("preset."+k))}</option>`).join("")}</select></div>
+    <div><div class="label" style="margin-bottom:8px">${t("r.players4")} · <span id="count4"></span></div><div class="track" id="track4p"></div></div>
+    <div><div class="label" style="margin-bottom:8px">${t("r.players8")} · <span id="count8"></span></div><div class="track" id="track8p"></div></div>
     <div id="rwarn"></div>
-    <div><div class="label" style="margin-bottom:4px">Question coverage (check only)</div>
-      <div class="muted" style="font-size:.8rem;margin-bottom:8px">How many of this pack's questions each round can draw from. Nothing to set here: the game picks questions for each round by itself. To raise a number, add more questions of that kind in step 2. <b>repeats</b> = fewer than the round likes, so some questions may come up twice; <b>none</b> = no questions of that kind yet. Faded rounds aren't in your running order.</div>
+    <div><div class="label" style="margin-bottom:4px">${t("r.coverage")}</div>
+      <div class="muted" style="font-size:.8rem;margin-bottom:8px">${t("r.coverage_help")}</div>
       <div class="status" id="rstatus"></div></div>
   </section>
 
-  <section class="step"><header><span class="num">4</span><h3>Generate</h3><span class="hint">Builds the pack and wraps it in an installable PKG</span></header>
+  <section class="step"><header><span class="num">4</span><h3>${t("g.title")}</h3><span class="hint">${t("g.hint")}</span></header>
     <div class="row" style="gap:18px">
-      <button class="btn go" id="gobtn">Generate PKG</button>
+      <button class="btn go" id="gobtn">${t("g.go")}</button>
       <span class="muted" id="gosummary"></span>
     </div>
-    <div class="row"><button class="btn" id="pubbtn">Publish to MyBuzz (online quizzes)</button><span class="muted">Also puts this pack's questions on your own Buzz server as online quizzes: nothing to install, play them from MyBuzz.</span></div>
+    <div class="row"><button class="btn" id="pubbtn">${t("g.publish")}</button><span class="muted">${t("g.publish_help")}</span></div>
     <div id="golog"></div>
   </section>`;
-  $("#f-title").onchange = e=>save({title:e.target.value}).then(()=>{loadState(); $(".head h2").textContent=P.title;});
+  head();
+  $("#f-title").onchange = e=>save({title:e.target.value}).then(()=>{loadState(); $(".head h2").textContent=P.title; renderThemes();});
   $("#f-desc").onchange = e=>save({description:e.target.value});
   $("#f-author").onchange = e=>save({author:e.target.value});
-  $("#f-num").onchange = async e=>{ try{ await save({number:parseInt(e.target.value,10)}); head(); numWarn(); toast("Pack number changed to "+P.number); }catch(err){ e.target.value=P.number; } };
+  $("#f-num").onchange = async e=>{ try{ await save({number:parseInt(e.target.value,10)}); head(); numWarn(); toast(t("pack.number_changed", {n:P.number})); }catch(err){ e.target.value=P.number; } };
   numWarn();
   $("#f-cat").onchange = e=>save({category:e.target.value});
-  $("#f-lang").onchange = e=>save({language:e.target.value}).then(voiceNote);
+  $("#f-lang").onchange = e=>save({language:e.target.value}).then(()=>{voiceNote(); if(qtab!=="import") renderQ();});
   $("#f-audio").onchange = e=>save({audio:e.target.checked}).then(voiceNote);
-  $("#qtabs").querySelectorAll("button").forEach(b=>b.onclick=()=>{qtab=b.dataset.t; render();});
   $("#preset").onchange = e=>{ const p=S.presets[e.target.value]; if(p){ save({rounds4p:p}).then(renderTracks); } };
   $("#gobtn").onclick = startGenerate;
-  $("#pubbtn").onclick = async()=>{ const r = await api("/api/publish",{id:P.id}); toast(`Published ${r.questions} questions as ${r.quizzes} online quiz${r.quizzes>1?"zes":""}`); };
-  renderQ(); renderTracks(); renderRoundsStatus(); voiceNote();
+  $("#pubbtn").onclick = async()=>{ const r = await api("/api/publish",{id:P.id}); toast(tn("g.published", r.quizzes, {q:r.questions})); };
+  renderThemes(); renderQ(); renderTracks(); renderRoundsStatus(); voiceNote();
   if(lastResult) showResult(lastResult);
 }
 function voiceNote(){
   const l = S.languages.find(x=>x.code===P.language);
-  const note = !P.audio ? "(off: silent host)" : (l && l.voice ? `(voice: ${l.voice})` : `(no ${P.language} host voice yet: the pack will be silent)`);
+  const note = !P.audio ? t("pack.voice_off") : (l && l.voice ? t("pack.voice_on", {v:l.voice}) : t("pack.voice_none", {lang:P.language}));
   $("#voicenote").textContent = note;
-  // which game this language's pack is for, and where it installs - visible before Generate
   const games = (l && l.builds && l.builds.length) ? l.builds.join(" / ") : null;
-  $("#gosummary").textContent = `${l?l.name:P.language} · ${P.audio && l && l.voice ? "with host voice" : "no audio"} · ${(P.rounds4p||[]).length} rounds + Final Countdown`;
+  const n = (P.rounds4p||[]).length;
+  $("#gosummary").textContent = `${l?t("lang."+l.code):P.language} · ${P.audio && l && l.voice ? t("g.with_voice") : t("g.no_audio")} · ${tn("g.rounds", n)}`;
   const gt = $("#gametarget");
   if (gt) gt.innerHTML = !l ? "" : games
-    ? `Plays on: <b>${esc(games)}</b> <span class="muted">(installs into ${esc(l.dlc||"?")})</span>`
-    : `<span class="warn">No known Buzz build uses ${esc(P.language)} - this pack cannot be installed.</span>`;
+    ? t("pack.plays_on", {games:esc(games), dlc:esc(l.dlc||"?")})
+    : `<span class="warn">${t("pack.no_build", {lang:esc(P.language)})}</span>`;
 }
+
+// ---------- themes
+function renderThemes(){
+  const el = $("#themes"); if(!el) return;
+  el.innerHTML = P.themes.map((th,i)=>`<div class="row theme" data-id="${th.id}">
+      <input type="text" value="${esc(th.name)}" maxlength="40" data-a="name" aria-label="${esc(t("themes.name"))}" style="flex:1;min-width:160px">
+      <span class="pill ${th.questions?"ok":"none"}">${tn("themes.count", th.questions)}</span>
+      ${i===0 ? `<span class="pill low" title="${esc(t("themes.main_help"))}">${t("themes.main")}</span>` : `<button class="btn small" data-a="main" title="${esc(t("themes.main_help"))}">${t("themes.make_main")}</button>`}
+      ${P.themes.length>1 ? `<button class="btn small" data-a="del" aria-label="${esc(t("themes.delete"))}" title="${esc(t("themes.delete_help"))}">✕</button>` : ""}
+    </div>`).join("") +
+    `<form class="row" id="addtheme"><input type="text" id="newtheme" maxlength="40" placeholder="${esc(t("themes.new_ph"))}" style="flex:1;min-width:160px"><button class="btn small" type="submit">${t("themes.add")}</button></form>`;
+  const done = v => { P = v; renderThemes(); renderQ(); head(); };
+  el.querySelectorAll(".theme").forEach(row=>{
+    const id = row.dataset.id;
+    row.querySelector("[data-a=name]").onchange = async e=>{ try{ done(await api("/api/theme",{id:P.id, op:"rename", theme:id, name:e.target.value})); toast(t("themes.renamed")); }catch(err){ renderThemes(); } };
+    const mb = row.querySelector("[data-a=main]"); if(mb) mb.onclick = async()=>done(await api("/api/theme",{id:P.id, op:"main", theme:id}));
+    const db = row.querySelector("[data-a=del]"); if(db) db.onclick = async()=>{ if(confirm(t("themes.delete_confirm", {name:themeName(id)}))) done(await api("/api/theme",{id:P.id, op:"delete", theme:id})); };
+  });
+  $("#addtheme").onsubmit = async e=>{ e.preventDefault(); const v=$("#newtheme").value.trim(); if(!v) return; done(await api("/api/theme",{id:P.id, op:"add", name:v})); };
+}
+const themeOptions = sel => P.themes.map(th=>`<option value="${th.id}" ${th.id===sel?"selected":""}>${esc(th.name)}</option>`).join("");
 
 // ---------- questions
 function renderQ(){
+  const tabs = $("#qtabs");
+  tabs.innerHTML = ["import","add","list"].map(k=>`<button data-t="${k}" class="${qtab===k?"on":""}">${k==="list" ? t("q.tab_list", {n:P.questions.length}) : t("q.tab_"+k)}</button>`).join("");
+  tabs.querySelectorAll("button").forEach(b=>b.onclick=()=>{qtab=b.dataset.t; renderQ();});
   const b = $("#qbody");
   if(qtab==="import"){
     b.innerHTML = `
-      <div class="drop" id="drop">Drop quiz files here or <u>browse</u><br><span style="font-size:.85rem">CSV · text (Aiken, Q:/A:, OpenTriviaQA, .buzz.txt) · XML (Moodle, Buzz online quiz, generic) · JSON</span><input type="file" id="files" multiple hidden accept=".csv,.tsv,.txt,.xml,.json"></div>
+      <div class="drop" id="drop">${t("imp.drop")}<br><span style="font-size:.85rem">${t("imp.formats")}</span><input type="file" id="files" multiple hidden accept=".csv,.tsv,.txt,.xml,.json"></div>
       <div class="grid" style="align-items:end">
-        <label class="f">Online source<select id="src"><option value="">Choose…</option><option value="opentdb">Open Trivia DB (CC BY-SA)</option><option value="otqa">OpenTriviaQA (CC BY-SA)</option><option value="triviaapi">The Trivia API (non-commercial)</option></select></label>
-        <label class="f">Category<select id="srccat"><option value="">Any</option></select></label>
-        <label class="f">How many<input type="number" id="srcn" value="50" min="1" max="500"></label>
-        <button class="btn primary" id="srcgo">Import</button>
+        <label class="f">${t("imp.source")}<select id="src"><option value="">${t("common.choose")}</option><option value="opentdb">Open Trivia DB (CC BY-SA)</option><option value="otqa">OpenTriviaQA (CC BY-SA)</option><option value="triviaapi">The Trivia API (${t("imp.noncommercial")})</option></select></label>
+        <label class="f">${t("imp.category")}<select id="srccat"><option value="">${t("imp.any")}</option></select></label>
+        <label class="f">${t("imp.how_many")}<input type="number" id="srcn" value="50" min="1" max="500"></label>
+        <button class="btn primary" id="srcgo">${t("imp.go")}</button>
       </div>
-      <label class="f">Or a web address of a quiz file<div class="row"><input type="text" id="url" placeholder="https://…" style="flex:1"><button class="btn" id="urlgo">Import</button></div></label>
+      <label class="f">${t("imp.url")}<div class="row"><input type="text" id="url" placeholder="https://…" style="flex:1"><button class="btn" id="urlgo">${t("imp.go")}</button></div></label>
+      <label class="switch"><input type="checkbox" id="impthemes"> ${t("imp.themes")}</label>
       <div id="impres" class="muted"></div>`;
     const drop=$("#drop"), fi=$("#files");
     drop.onclick=()=>fi.click();
@@ -290,104 +361,120 @@ function renderQ(){
     fi.onchange=()=>importFiles(fi.files);
     $("#src").onchange=async e=>{
       const c=$("#srccat");
-      if(e.target.value==="opentdb"){ c.innerHTML=`<option value="">Loading…</option>`; const r=await api("/api/opentdb",{}); c.innerHTML=`<option value="">Any</option>`+r.categories.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join(""); }
+      if(e.target.value==="opentdb"){ c.innerHTML=`<option value="">${t("common.loading")}</option>`; const r=await api("/api/opentdb",{}); c.innerHTML=`<option value="">${t("imp.any")}</option>`+r.categories.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join(""); }
       else if(e.target.value==="otqa"){ c.innerHTML=OTQA.map(x=>`<option>${x}</option>`).join(""); }
-      else if(e.target.value==="triviaapi"){ c.innerHTML=`<option value="">Any</option>`+["arts_and_literature","film_and_tv","food_and_drink","general_knowledge","geography","history","music","science","society_and_culture","sport_and_leisure"].map(x=>`<option>${x}</option>`).join(""); }
+      else if(e.target.value==="triviaapi"){ c.innerHTML=`<option value="">${t("imp.any")}</option>`+["arts_and_literature","film_and_tv","food_and_drink","general_knowledge","geography","history","music","science","society_and_culture","sport_and_leisure"].map(x=>`<option>${x}</option>`).join(""); }
     };
     $("#srcgo").onclick=()=>{
-      const s=$("#src").value, c=$("#srccat").value, n=+$("#srcn").value||50; if(!s) return toast("Choose an online source",true);
+      const s=$("#src").value, c=$("#srccat").value, n=+$("#srcn").value||50; if(!s) return toast(t("imp.choose_source"),true);
       const spec = s==="opentdb" ? `opentdb:amount=${n}`+(c?`&category=${c}`:"") : s==="otqa" ? `opentriviaqa:${c||"general"}` : `triviaapi:limit=${n}`+(c?`&categories=${c}`:"");
       doImport({online:spec, limit: s==="otqa"? n : null});
     };
     $("#urlgo").onclick=()=>{ const u=$("#url").value.trim(); if(u) doImport({url:u}); };
   } else if(qtab==="add"){
     b.innerHTML = `
-      <div class="row">${Object.entries(KINDS).map(([k,v])=>`<button class="chip ${addKind===k?"on":""}" data-k="${k}">${v}</button>`).join("")}</div>
-      <label class="f">Question <span class="cnt" id="qcnt"></span><input type="text" id="aq" maxlength="140" placeholder="Type the question as it should appear"></label>
+      <div class="row">${KIND_KEYS.map(k=>`<button class="chip ${addKind===k?"on":""}" data-k="${k}">${kindName(k)}</button>`).join("")}</div>
+      <label class="f">${t("add.question")} <span class="cnt" id="qcnt"></span><input type="text" id="aq" maxlength="140" placeholder="${esc(t("add.question_ph"))}"></label>
       <div id="addbody"></div>
-      <div><button class="btn primary" id="addgo">Add question</button></div>`;
+      <div><button class="btn primary" id="addgo">${t("add.go")}</button></div>`;
     b.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{addKind=c.dataset.k;renderQ();});
     counter($("#aq"),$("#qcnt"),93);
     const ab=$("#addbody");
     if(addKind==="point_stealer"){
-      ab.innerHTML = `<div class="muted">Four pictures are the answers. Pick which one is right.</div><div class="answers">${[0,1,2,3].map(i=>`<label class="ans"><span class="dot d${i}"></span><input type="radio" name="psc" value="${i}" ${i===0?"checked":""}><input type="file" accept="image/*" id="psi${i}"></label>`).join("")}</div>`;
+      ab.innerHTML = `<div class="muted">${t("add.ps_help")}</div><div class="answers">${[0,1,2,3].map(i=>`<label class="ans"><span class="dot d${i}"></span><input type="radio" name="psc" value="${i}" ${i===0?"checked":""}><input type="file" accept="image/*" id="psi${i}"></label>`).join("")}</div>`;
     } else {
       const ata = addKind==="all_that_apply";
-      ab.innerHTML = (addKind==="picture"?`<label class="f">Picture (shown with the question)<input type="file" accept="image/*" id="aimg"></label>`:"") +
-        `<div class="muted">${ata?"Tick every right answer.":"The first (blue) answer is the right one; the game shuffles them."}</div>
-        <div class="answers">${[0,1,2,3].map(i=>`<label class="ans ${!ata&&i===0?"correct":""}"><span class="dot d${i}"></span>${ata?`<input type="checkbox" id="ar${i}">`:""}<input type="text" id="aa${i}" placeholder="${!ata&&i===0?"Right answer":"Answer"}"><span class="cnt" id="ac${i}"></span></label>`).join("")}</div>` +
-        (ata ? "" : `<label class="f">Announced subject (High Stakes) <span class="cnt" id="abcnt"></span><input type="text" id="aabout" maxlength="115" placeholder="optional, e.g. a song from the 2010s"></label>
-        <div class="muted" style="font-size:.82rem">Before each High Stakes question the game says what it is about. Leave empty to announce the pack's theme. End with ! ? or . to write the whole sentence yourself.<br>Preview: <b id="abprev"></b></div>`);
+      ab.innerHTML = (addKind==="picture"?`<label class="f">${t("add.picture")}<input type="file" accept="image/*" id="aimg"></label>`:"") +
+        `<div class="muted">${ata?t("add.ata_help"):t("add.std_help")}</div>
+        <div class="answers">${[0,1,2,3].map(i=>`<label class="ans ${!ata&&i===0?"correct":""}"><span class="dot d${i}"></span>${ata?`<input type="checkbox" id="ar${i}">`:""}<input type="text" id="aa${i}" placeholder="${esc(!ata&&i===0?t("add.right"):t("add.answer"))}"><span class="cnt" id="ac${i}"></span></label>`).join("")}</div>` +
+        (ata ? "" : `<div class="grid" style="align-items:end">
+          ${P.themes.length>1 ? `<label class="f">${t("add.theme")}<select id="atheme">${themeOptions(P.themes[0].id)}</select></label>` : ""}
+          <label class="f" style="grid-column:span 2">${t("add.about")} <span class="cnt" id="abcnt"></span><input type="text" id="aabout" maxlength="115" placeholder="${esc(t("add.about_ph"))}"></label></div>
+        <div class="muted" style="font-size:.82rem">${t("add.about_help")}<br>${t("add.preview")} <b id="abprev"></b></div>`);
       [0,1,2,3].forEach(i=>counter($("#aa"+i),$("#ac"+i),30));
       const abi = $("#aabout");
-      if(abi){ const u=()=>{ $("#abprev").textContent = introLine(abi.value); const n=abi.value.length, full="!?.;".includes(abi.value.trim().slice(-1)); $("#abcnt").textContent = full ? `${n}/${S.max_q_full}` : `${n}/${S.max_about}`; $("#abcnt").classList.toggle("over", n > (full?S.max_q_full:S.max_about)); }; abi.oninput=u; u(); }
+      if(abi){
+        const u=()=>{ const th=$("#atheme"); $("#abprev").textContent = introLine(abi.value, 0, th?themeName(th.value):""); const n=abi.value.length, full="!?.;".includes(abi.value.trim().slice(-1)); $("#abcnt").textContent = full ? `${n}/${S.max_q_full}` : `${n}/${S.max_about}`; $("#abcnt").classList.toggle("over", n > (full?S.max_q_full:S.max_about)); };
+        abi.oninput=u; if($("#atheme")) $("#atheme").onchange=u; u();
+      }
     }
     $("#addgo").onclick=addQuestion;
   } else {
-    const rows = P.questions.filter(q=>qfilter==="all"||q.kind===qfilter);
-    const canAbout = q => q.kind==="standard"||q.kind==="picture";
-    b.innerHTML = `<div class="row">${["all",...Object.keys(KINDS)].map(k=>`<button class="chip ${qfilter===k?"on":""}" data-f="${k}">${k==="all"?"All":KINDS[k]} (${k==="all"?P.questions.length:P.counts[k]})</button>`).join("")}</div>
-      <div class="row" style="align-items:end">
-        <label class="f" style="flex:1">Announced subject for the ticked questions (High Stakes)<input type="text" id="bulkabout" maxlength="115" placeholder="e.g. a song from the 2010s (empty = announce the pack's theme)"></label>
-        <button class="btn small" id="bulkall">Tick all shown</button>
-        <button class="btn primary small" id="bulkgo">Apply</button>
+    const rows = P.questions.filter(q=>(qfilter==="all"||q.kind===qfilter) && (qtheme==="all"||q.theme===qtheme));
+    const meta = q => q.kind==="standard"||q.kind==="picture";
+    const multi = P.themes.length>1;
+    b.innerHTML = `<div class="row">${["all",...KIND_KEYS].map(k=>`<button class="chip ${qfilter===k?"on":""}" data-f="${k}">${k==="all"?t("list.all"):kindName(k)} (${k==="all"?P.questions.length:P.counts[k]})</button>`).join("")}
+        ${multi ? `<select id="qtheme" style="width:auto"><option value="all">${t("list.all_themes")}</option>${themeOptions(qtheme)}</select>` : ""}</div>
+      <div class="bulk">
+        <div class="row"><button class="btn small" id="bulkall">${t("list.tick_all")}</button><span class="muted" style="font-size:.82rem">${t("list.bulk_help")}</span></div>
+        <div class="row" style="align-items:end">
+          <label class="f" style="flex:1;min-width:220px">${t("list.bulk_about")}<input type="text" id="bulkabout" maxlength="115" placeholder="${esc(t("list.bulk_about_ph"))}"></label>
+          <button class="btn primary small" id="bulkgo">${t("list.apply")}</button>
+          ${multi ? `<label class="f">${t("list.bulk_theme")}<select id="bulktheme">${themeOptions(P.themes[0].id)}</select></label><button class="btn primary small" id="bulkmove">${t("list.move")}</button>` : ""}
+        </div>
       </div>
-      <div class="qwrap"><table class="qtable"><thead><tr><th></th><th>Type</th><th>Question</th><th>Answers</th><th></th></tr></thead><tbody>${
-      rows.length ? rows.map(q=>`<tr><td>${canAbout(q)?`<input type="checkbox" class="qsel" data-k="${q.kind}" data-i="${q.i}" aria-label="Select">`:""}</td><td><span class="pill ${q.kind==="standard"?"ok":"low"}">${KINDS[q.kind]}</span></td><td>${q.img?`<img src="/img?id=${P.id}&name=${q.img}" alt="">`:""}${esc(q.q)}${canAbout(q)?`<div class="muted" style="font-size:.78rem" title="${esc(introLine(q.about))}">${q.about?"Subject: "+esc(q.about):"Subject: pack theme"}</div>`:""}</td><td class="a">${
+      <div class="qwrap"><table class="qtable"><thead><tr><th></th><th>${t("list.type")}</th><th>${t("list.question")}</th><th>${t("list.answers")}</th><th></th></tr></thead><tbody>${
+      rows.length ? rows.map(q=>`<tr><td>${meta(q)?`<input type="checkbox" class="qsel" data-k="${q.kind}" data-i="${q.i}" aria-label="${esc(t("list.select"))}">`:""}</td><td><span class="pill ${q.kind==="standard"?"ok":"low"}">${kindName(q.kind)}</span></td><td>${q.img?`<img src="/img?id=${P.id}&name=${q.img}" alt="">`:""}${esc(q.q)}${meta(q)?`<div class="muted" style="font-size:.78rem" title="${esc(introLine(q.about, 0, themeName(q.theme)))}">${multi?esc(t("list.theme_is", {name:themeName(q.theme)}))+" · ":""}${q.about?esc(t("list.subject_is", {s:q.about})):esc(t("list.subject_theme"))}</div>`:""}</td><td class="a">${
         q.kind==="point_stealer" ? q.imgs.map(n=>`<img src="/img?id=${P.id}&name=${n}" alt="">`).join("") :
         q.kind==="all_that_apply" ? q.a.map((a,i)=>`<span style="${q.right[i]?"color:var(--ok);font-weight:600":"color:var(--muted);font-weight:400"}">${esc(a)}</span>`).join("") :
-        q.a.map(a=>`<span>${esc(a)}</span>`).join("")}</td><td><button class="btn small" data-del="${q.kind}:${q.i}" aria-label="Delete">✕</button></td></tr>`).join("")
-      : `<tr><td colspan="5" class="muted">No questions yet.</td></tr>`}</tbody></table></div>`;
+        q.a.map(a=>`<span>${esc(a)}</span>`).join("")}</td><td><button class="btn small" data-del="${q.kind}:${q.i}" aria-label="${esc(t("list.delete"))}">✕</button></td></tr>`).join("")
+      : `<tr><td colspan="5" class="muted">${t("list.none")}</td></tr>`}</tbody></table></div>`;
     b.querySelectorAll("[data-f]").forEach(c=>c.onclick=()=>{qfilter=c.dataset.f;renderQ();});
+    if($("#qtheme")) $("#qtheme").onchange=e=>{qtheme=e.target.value;renderQ();};
+    const ticked = ()=>[...b.querySelectorAll(".qsel:checked")].map(x=>({kind:x.dataset.k,i:+x.dataset.i}));
     $("#bulkall").onclick=()=>{ const boxes=[...b.querySelectorAll(".qsel")]; const on=!boxes.every(x=>x.checked); boxes.forEach(x=>x.checked=on); };
     $("#bulkgo").onclick=async()=>{
-      const items=[...b.querySelectorAll(".qsel:checked")].map(x=>({kind:x.dataset.k,i:+x.dataset.i}));
-      if(!items.length) return toast("Tick the questions first",true);
-      const r = await api("/api/about",{id:P.id, about:$("#bulkabout").value.trim(), items});
-      P = r; toast(`Subject set on ${r.changed} question${r.changed>1?"s":""}`); renderQ();
+      const items=ticked(); if(!items.length) return toast(t("list.tick_first"),true);
+      P = await api("/api/about",{id:P.id, about:$("#bulkabout").value.trim(), items}); toast(tn("list.subject_set", P.changed)); renderQ();
     };
-    b.querySelectorAll("[data-del]").forEach(d=>d.onclick=async()=>{const [k,i]=d.dataset.del.split(":"); P=await api("/api/delete",{id:P.id,kind:k,i:+i}); renderQ(); renderRoundsStatus(); head();});
+    if($("#bulkmove")) $("#bulkmove").onclick=async()=>{
+      const items=ticked(); if(!items.length) return toast(t("list.tick_first"),true);
+      P = await api("/api/assign",{id:P.id, theme:$("#bulktheme").value, items}); toast(tn("list.moved", P.changed, {name:themeName($("#bulktheme").value)})); renderThemes(); renderQ();
+    };
+    b.querySelectorAll("[data-del]").forEach(d=>d.onclick=async()=>{const [k,i]=d.dataset.del.split(":"); P=await api("/api/delete",{id:P.id,kind:k,i:+i}); renderThemes(); renderQ(); renderRoundsStatus(); head();});
   }
 }
-function head(){ $(".head .sub").textContent = `Pack #${P.number} · ${P.questions.length} questions`; $("#qtabs [data-t=list]").textContent=`All questions (${P.questions.length})`; loadState(); }
+function head(){ const s=$(".head .sub"); if(s) s.textContent = `${t("pack.pack_no", {n:P.number})} · ${tn("pack.questions", totalQ())}`; const lt=$("#qtabs [data-t=list]"); if(lt) lt.textContent=t("q.tab_list", {n:P.questions.length}); loadState(); }
 function counter(inp, out, max){ const u=()=>{out.textContent=`${inp.value.length}/${max}`; out.classList.toggle("over", inp.value.length>max);}; inp.oninput=u; u(); }
 async function importFiles(list){ if(!list.length) return; const files=[]; for(const f of list) files.push(await readFile(f)); doImport({files}); }
 async function doImport(body){
-  $("#impres").textContent = "Importing…";
+  $("#impres").textContent = t("imp.importing");
+  body.themes_from_category = !!($("#impthemes") && $("#impthemes").checked);
   const r = await api("/api/import", Object.assign({id:P.id}, body));
   P = r.project;
   const sk = Object.entries(r.skipped).map(([k,v])=>`${v} ${k}`).join(", ");
-  $("#impres").innerHTML = `<b>${r.added} added</b> of ${r.found} found${sk?` · skipped: ${esc(sk)}`:""}`;
-  renderRoundsStatus(); head();
+  $("#impres").innerHTML = t("imp.result", {added:r.added, found:r.found}) + (sk ? " · " + esc(t("imp.skipped", {list:sk})) : "");
+  renderThemes(); renderRoundsStatus(); head();
 }
 async function addQuestion(){
   const body = {id:P.id, kind:addKind, question:$("#aq").value.trim()};
   if(addKind==="point_stealer"){
-    body.images=[]; for(let i=0;i<4;i++){ const f=$("#psi"+i).files[0]; if(!f) return toast("Add all four pictures",true); body.images.push(await readFile(f)); }
+    body.images=[]; for(let i=0;i<4;i++){ const f=$("#psi"+i).files[0]; if(!f) return toast(t("add.need_four"),true); body.images.push(await readFile(f)); }
     body.correct = +document.querySelector("input[name=psc]:checked").value;
   } else {
     body.answers=[0,1,2,3].map(i=>$("#aa"+i).value.trim());
     if($("#aabout")) body.about=$("#aabout").value.trim();
+    if($("#atheme")) body.theme=$("#atheme").value;
     if(addKind==="all_that_apply") body.right=[0,1,2,3].map(i=>$("#ar"+i).checked);
-    if(addKind==="picture"){ const f=$("#aimg").files[0]; if(!f) return toast("Choose a picture",true); body.image=await readFile(f); }
+    if(addKind==="picture"){ const f=$("#aimg").files[0]; if(!f) return toast(t("add.need_picture"),true); body.image=await readFile(f); }
   }
-  P = await api("/api/add", body); toast("Question added"); renderQ(); renderRoundsStatus(); head();
+  P = await api("/api/add", body); toast(t("add.done")); renderThemes(); renderQ(); renderRoundsStatus(); head();
 }
 
-// ---------- rounds
+// ---------- rounds (values stay the English round names the server expects; labels are translated)
 const roundNames = () => S.round_types.map(r=>r.name);
 function renderTracks(){ ["4p","8p"].forEach(pl=>renderTrack(pl)); }
 function renderTrack(pl){
   const steps = (P["rounds"+pl]||[]).map(s=>typeof s==="string"?s:{random:[...s.random]});
   const el = $("#track"+pl);
   const none = new Set(P.rounds_status.filter(r=>r.state==="none").map(r=>r.name));
-  const opts = sel => roundNames().filter(n=>n!=="Final Countdown").map(n=>`<option value="${n}" ${n===sel?"selected":""}>${n}${none.has(n)?" (no questions)":""}</option>`).join("");
-  el.innerHTML = steps.map((s,i)=>`<div class="card" data-i="${i}"><div class="top"><span>Round ${i+1}${typeof s==="string"?"":" · random"}</span><span class="tools"><button data-a="left" aria-label="Move earlier">◀</button><button data-a="right" aria-label="Move later">▶</button><button data-a="del" aria-label="Remove">✕</button></span></div>${
+  const opts = sel => roundNames().filter(n=>n!=="Final Countdown").map(n=>`<option value="${esc(n)}" ${n===sel?"selected":""}>${esc(rn(n))}${none.has(n)?" "+t("r.no_questions"):""}</option>`).join("");
+  el.innerHTML = steps.map((s,i)=>`<div class="card" data-i="${i}"><div class="top"><span>${t("r.round_n", {n:i+1})}${typeof s==="string"?"":" · "+t("r.random")}</span><span class="tools"><button data-a="left" aria-label="${esc(t("r.earlier"))}">◀</button><button data-a="right" aria-label="${esc(t("r.later"))}">▶</button><button data-a="del" aria-label="${esc(t("r.remove"))}">✕</button></span></div>${
     typeof s==="string" ? `<select data-a="pick">${opts(s)}</select>` :
-    `<div class="chips">${roundNames().filter(n=>n!=="Final Countdown").map(n=>`<span class="chip ${s.random.includes(n)?"on":""} ${none.has(n)?"dim":""}" title="${none.has(n)?"No questions for this round yet":""}" data-a="toggle" data-n="${esc(n)}">${n}</span>`).join("")}</div>`}</div>`).join("") +
-    `<div class="card fixed"><div class="top"><span>Last round</span></div><b>Final Countdown</b></div>
-     <div class="card fixed" style="gap:6px"><button class="btn small" data-a="addr">+ Round</button><button class="btn small" data-a="addx">+ Random pick</button></div>`;
-  $("#count"+(pl==="4p"?"4":"8")).textContent = steps.length ? `${steps.length} round${steps.length>1?"s":""} + Final Countdown` : "game default (no custom order)";
+    `<div class="chips">${roundNames().filter(n=>n!=="Final Countdown").map(n=>`<span class="chip ${s.random.includes(n)?"on":""} ${none.has(n)?"dim":""}" title="${none.has(n)?esc(t("r.no_questions_help")):""}" data-a="toggle" data-n="${esc(n)}">${esc(rn(n))}</span>`).join("")}</div>`}</div>`).join("") +
+    `<div class="card fixed"><div class="top"><span>${t("r.last")}</span></div><b>${esc(rn("Final Countdown"))}</b></div>
+     <div class="card fixed" style="gap:6px"><button class="btn small" data-a="addr">${t("r.add_round")}</button><button class="btn small" data-a="addx">${t("r.add_random")}</button></div>`;
+  $("#count"+(pl==="4p"?"4":"8")).textContent = steps.length ? tn("g.rounds", steps.length) : t("r.default");
   const commit = ns => save({["rounds"+pl]:ns}).then(()=>{renderTrack(pl); renderRoundsStatus();});
   el.querySelectorAll("[data-a]").forEach(c=>{
     const card=c.closest("[data-i]"); const i=card?+card.dataset.i:-1; const a=c.dataset.a;
@@ -406,26 +493,26 @@ function renderTrack(pl){
 function renderRoundsStatus(){
   const el=$("#rstatus"); if(!el) return;
   const used = new Set([...(P.rounds4p||[]),...(P.rounds8p||[])].flatMap(s=>typeof s==="string"?[s]:s.random).concat(["Final Countdown"]));
-  const bad = P.rounds_status.filter(r=>r.state==="none" && used.has(r.name)).map(r=>r.name);
-  $("#rwarn").innerHTML = bad.length ? `<div class="warn">${bad.join(", ")} ${bad.length>1?"have":"has"} no questions in this pack yet. Add some (Point Stealer needs picture answers) or take ${bad.length>1?"them":"it"} out of the running order.</div>` : "";
-  el.innerHTML = P.rounds_status.map(r=>`<div style="${used.has(r.name)?"":"opacity:.6"}"><span>${r.name}</span><span class="pill ${r.state}">${r.state==="none"?"none":r.questions+(r.state==="low"?" (repeats)":"")}</span></div>`).join("");
+  const bad = P.rounds_status.filter(r=>r.state==="none" && used.has(r.name)).map(r=>rn(r.name));
+  $("#rwarn").innerHTML = bad.length ? `<div class="warn">${esc(tn("r.missing", bad.length, {list:bad.join(", ")}))}</div>` : "";
+  el.innerHTML = P.rounds_status.map(r=>`<div style="${used.has(r.name)?"":"opacity:.6"}"><span>${esc(rn(r.name))}</span><span class="pill ${r.state}">${r.state==="none"?t("r.none"):r.questions+(r.state==="low"?" "+t("r.repeats"):"")}</span></div>`).join("");
   voiceNote();
 }
 
 // ---------- generate
 function numWarn(){
   const c = P.number_conflicts || [], el = $("#numwarn"), go = $("#gobtn");
-  if(el) el.innerHTML = c.length ? `<div class="warn">${c.map(esc).join("<br>")}. Pick another number, for example ${P.free_number}.</div>` : "";
-  if(go){ go.disabled = c.length>0; go.title = c.length ? "Pick a free pack number in step 1 first" : ""; }
+  if(el) el.innerHTML = c.length ? `<div class="warn">${c.map(esc).join("<br>")}. ${t("pack.number_pick", {n:P.free_number})}</div>` : "";
+  if(go){ go.disabled = c.length>0; go.title = c.length ? t("g.need_number") : ""; }
 }
 async function startGenerate(){
   const btn=$("#gobtn"); btn.disabled=true; lastResult=null;
-  $("#golog").innerHTML=`<div class="log" id="logbox">Starting…</div>`;
+  $("#golog").innerHTML=`<div class="log" id="logbox">${t("g.starting")}</div>`;
   const r = await api("/api/generate",{id:P.id}).catch(()=>{btn.disabled=false;});
   if(!r) return;
   const poll = async()=>{
     const j = await api("/api/job?id="+r.job);
-    $("#logbox").textContent = j.log.join("\n") || "Working…";
+    $("#logbox").textContent = j.log.join("\n") || t("g.working");
     if(!j.done) return setTimeout(poll, 1000);
     btn.disabled=false;
     if(j.result){ lastResult=j.result; showResult(j.result); P = await api("/api/project?id="+P.id); }
@@ -434,100 +521,98 @@ async function startGenerate(){
 }
 function showResult(res){
   const box=document.createElement("div"); box.className="result";
-  box.innerHTML = `<b>PKG ready</b><code>${esc(res.pkg)}</code>
-    <div class="muted">${esc(res.language)} · pack #${res.pack_number} · ${res.voiced} voiced lines · ${esc(res.voice)}</div>
-    <div class="muted">Install it in RPCS3 with <b>File → Install Packages/Raps/Edats</b>, or on a modded PS3 with the package installer.</div>
-    <div class="row"><button class="btn" id="openf">Open folder</button><button class="btn" id="inst">Copy straight into RPCS3</button></div>`;
+  box.innerHTML = `<b>${t("g.ready")}</b><code>${esc(res.pkg)}</code>
+    <div class="muted">${esc(res.language)} · ${t("pack.pack_no", {n:res.pack_number})} · ${tn("g.voiced", res.voiced)} · ${esc(res.voice)}</div>
+    <div class="muted">${t("g.install_help")}</div>
+    <div class="row"><button class="btn" id="openf">${t("g.open_folder")}</button><button class="btn" id="inst">${t("g.install")}</button></div>`;
   $("#golog").appendChild(box);
   $("#openf").onclick=()=>api("/api/open",{path:res.pkg});
   $("#inst").onclick=async()=>{const r=await api("/api/install",{result:res});
-    toast("Installed into "+(r.game_name||r.dlc_title)+": "+r.installed);};
+    toast(t("g.installed", {game:r.game_name||r.dlc_title, path:r.installed}));};
 }
 
 // ---------- online server page
 let srvTimer = null;
-async function srvPill(){ try{ const st = await api("/api/server",{op:"status"}); const p=$("#srvpill"); p.textContent = st.running?"running":"stopped"; p.className = "pill "+(st.running?"ok":"none"); return st; }catch(e){} }
-$("#srvbtn").onclick = ()=>{ P=null; renderSide(); renderServer(); };
+async function srvPill(){ try{ const st = await api("/api/server",{op:"status"}); const p=$("#srvpill"); p.textContent = st.running?t("srv.running_short"):t("srv.stopped_short"); p.className = "pill "+(st.running?"ok":"none"); return st; }catch(e){} }
+$("#srvbtn").onclick = ()=>{ P=null; page="server"; renderSide(); renderServer(); };
 async function renderServer(st){
   st = st || await api("/api/server",{op:"status"});
   srvPill();
   const m=$("#main");
   const swap = `${st.hostname}=${st.lan_ip}`;
   m.innerHTML = `
-  <div class="head"><div><h2>Online server</h2><div class="sub">Your own Buzz! server: MyBuzz online quizzes, leaderboards and buddies for you and your friends</div></div></div>
-  <section class="step"><header><h3>Server</h3><span class="hint"><span class="pill ${st.running?"ok":"none"}">${st.running?"Running":"Stopped"}</span></span></header>
-    ${st.configured ? "" : `<div class="warn">One-time setup: the server needs a value from your own copy of the game. In RPCS3 use <b>Utilities → Decrypt PS3 Binaries</b> on the game's EBOOT.BIN, then give the .elf here.</div>
-      <label class="f">Decrypted EBOOT (.elf)<div class="row"><input type="text" id="eboot" placeholder="…\\EBOOT.elf" style="flex:1"><button class="btn primary" id="setupbtn">Set up server</button></div></label>`}
-    <div class="row">${st.running ? `<button class="btn" id="stopbtn" ${st.managed?"":"disabled title='Started outside the Studio'"}>Stop server</button>` : `<button class="btn primary" id="startbtn" ${st.configured?"":"disabled"}>Start server</button>`}
-      <span class="muted">Ports ${Object.entries(st.ports).map(([p,u])=>`${p} ${u?"✓":"✗"}`).join(" · ")}</span></div>
-    <div class="log">${esc((st.log||[]).join("\n")) || "No server log yet."}</div>
+  <div class="head"><div><h2>${t("srv.title")}</h2><div class="sub">${t("srv.sub")}</div></div></div>
+  <section class="step"><header><h3>${t("srv.server")}</h3><span class="hint"><span class="pill ${st.running?"ok":"none"}">${st.running?t("srv.running"):t("srv.stopped")}</span></span></header>
+    ${st.configured ? "" : `<div class="warn">${t("srv.setup_help")}</div>
+      <label class="f">${t("srv.eboot")}<div class="row"><input type="text" id="eboot" placeholder="…\\EBOOT.elf" style="flex:1"><button class="btn primary" id="setupbtn">${t("srv.setup_btn")}</button></div></label>`}
+    <div class="row">${st.running ? `<button class="btn" id="stopbtn" ${st.managed?"":`disabled title="${esc(t("srv.outside"))}"`}>${t("srv.stop")}</button>` : `<button class="btn primary" id="startbtn" ${st.configured?"":"disabled"}>${t("srv.start")}</button>`}
+      <span class="muted">${t("srv.ports")} ${Object.entries(st.ports).map(([p,u])=>`${p} ${u?"✓":"✗"}`).join(" · ")}</span></div>
+    <div class="log">${esc((st.log||[]).join("\n")) || t("srv.no_log")}</div>
   </section>
-  <section class="step"><header><h3>Play with friends</h3><span class="hint">Each player sets this in RPCS3</span></header>
-    <div>Friends on your network put this in RPCS3 → <b>Configuration → Network → IP swap list</b> (you use <code>${st.hostname}=127.0.0.1</code>):</div>
-    <div class="row"><code style="font-size:1rem;padding:6px 10px;background:var(--soft);border-radius:8px">${esc(swap)}</code><button class="btn small" id="copyswap">Copy</button></div>
-    <div class="muted">Over the internet: forward TCP ports 10060, 10071 and 10075 on your router to this PC and give friends your public IP instead. Everyone needs a free RPCN account (RPCS3 → Configuration → RPCN).</div>
+  <section class="step"><header><h3>${t("srv.friends")}</h3><span class="hint">${t("srv.friends_hint")}</span></header>
+    <div>${t("srv.swap_help", {self:`<code>${esc(st.hostname)}=127.0.0.1</code>`})}</div>
+    <div class="row"><code style="font-size:1rem;padding:6px 10px;background:var(--soft);border-radius:8px">${esc(swap)}</code><button class="btn small" id="copyswap">${t("srv.copy")}</button></div>
+    <div class="muted">${t("srv.internet")}</div>
     <div class="grid" style="align-items:end">
-      <label class="f">This PC plays on the server at<input type="text" id="srvip" value="127.0.0.1"></label>
-      <label class="switch"><input type="checkbox" id="fps60" checked> 60 FPS patch</label>
-      <button class="btn primary" id="setuppc">Set up this PC for online play</button>
+      <label class="f">${t("srv.this_pc")}<input type="text" id="srvip" value="127.0.0.1"></label>
+      <label class="switch"><input type="checkbox" id="fps60" checked> ${t("srv.fps60")}</label>
+      <button class="btn primary" id="setuppc">${t("srv.setup_pc")}</button>
     </div>
-    <div class="muted" style="font-size:.85rem">Applies the login fix to your game's scripts, enables the RPCS3 patch the server needs, and sets RPCS3's network options (Internet on, PSN = RPCN, IP swap). Every changed file is backed up first.</div>
+    <div class="muted" style="font-size:.85rem">${t("srv.setup_pc_help")}</div>
     <div id="setupres"></div>
   </section>
-  <section class="step"><header><h3>Online quizzes</h3><span class="hint">What your server offers in MyBuzz</span></header>
-    <div class="qwrap"><table class="qtable"><thead><tr><th>Pack</th><th>Quizzes</th><th>From</th><th>On</th></tr></thead><tbody>${
-      (st.published||[]).map(p=>`<tr><td>${esc(p.pack)}</td><td>${p.quizzes}</td><td class="muted">${p.project?"Studio: "+esc(p.project):"catalogue file "+esc(p.file)}</td><td><input type="checkbox" data-file="${esc(p.file)}" ${p.enabled?"checked":""} aria-label="Offer ${esc(p.pack)} online"></td></tr>`).join("") || `<tr><td colspan="4" class="muted">Nothing published yet: use "Publish to MyBuzz" on a pack.</td></tr>`}</tbody></table></div>
+  <section class="step"><header><h3>${t("srv.quizzes")}</h3><span class="hint">${t("srv.quizzes_hint")}</span></header>
+    <div class="qwrap"><table class="qtable"><thead><tr><th>${t("srv.col_pack")}</th><th>${t("srv.col_quizzes")}</th><th>${t("srv.col_from")}</th><th>${t("srv.col_on")}</th></tr></thead><tbody>${
+      (st.published||[]).map(p=>`<tr><td>${esc(p.pack)}</td><td>${p.quizzes}</td><td class="muted">${p.project?t("srv.from_studio", {name:esc(p.project)}):t("srv.from_file", {name:esc(p.file)})}</td><td><input type="checkbox" data-file="${esc(p.file)}" ${p.enabled?"checked":""} aria-label="${esc(t("srv.offer", {name:p.pack}))}"></td></tr>`).join("") || `<tr><td colspan="4" class="muted">${t("srv.nothing")}</td></tr>`}</tbody></table></div>
   </section>`;
   const b=(id,fn)=>{const e=$("#"+id); if(e) e.onclick=fn;};
   b("startbtn", async()=>{ renderServer(await api("/api/server",{op:"start"})); setTimeout(()=>renderServer(),2500); });
   b("stopbtn", async()=>renderServer(await api("/api/server",{op:"stop"})));
-  b("setupbtn", async()=>{ renderServer(await api("/api/server",{op:"setup",eboot:$("#eboot").value.trim()})); toast("Server set up"); });
-  b("copyswap", ()=>{ navigator.clipboard.writeText(swap); toast("Copied"); });
-  b("setuppc", async()=>{ const r=await api("/api/setup_pc",{server_ip:$("#srvip").value.trim(),fps60:$("#fps60").checked}); $("#setupres").innerHTML=`<div class="result"><b>Done</b>${r.done.map(x=>`<div>✓ ${esc(x)}</div>`).join("")}<div class="muted">Restart the game in RPCS3 for this to take effect.</div></div>`; });
+  b("setupbtn", async()=>{ renderServer(await api("/api/server",{op:"setup",eboot:$("#eboot").value.trim()})); toast(t("srv.set_up")); });
+  b("copyswap", ()=>{ navigator.clipboard.writeText(swap); toast(t("srv.copied")); });
+  b("setuppc", async()=>{ const r=await api("/api/setup_pc",{server_ip:$("#srvip").value.trim(),fps60:$("#fps60").checked}); $("#setupres").innerHTML=`<div class="result"><b>${t("srv.done")}</b>${r.done.map(x=>`<div>✓ ${esc(x)}</div>`).join("")}<div class="muted">${t("srv.restart")}</div></div>`; });
   m.querySelectorAll("[data-file]").forEach(c=>c.onchange=()=>api("/api/catalog",{file:c.dataset.file,enabled:c.checked}));
-  clearTimeout(srvTimer); srvTimer=setTimeout(()=>{ if(!P && $("#main h2")?.textContent==="Online server") renderServer(); }, 5000);
+  clearTimeout(srvTimer); srvTimer=setTimeout(()=>{ if(page==="server") renderServer(); }, 5000);
 }
 
 let bbTimer;
-async function bbPill(){ try{ const st = await api("/api/buzzers",{op:"status"}); const p=$("#bbpill"); p.textContent = st.running?"on":"off"; p.className = "pill "+(st.running?"ok":"none"); return st; }catch(e){} }
-$("#bbbtn").onclick = ()=>{ P=null; renderSide(); renderBuzzers(); };
-const BB_RECEIVER = {ok:[1,"Receiver found"], running:[1,"Receiver found and in use by the buzzers"],
-  missing:[0,"Receiver not found: plug in the Big Button IR receiver"],
-  no_driver:[0,"The receiver needs the WinUSB driver: install it once with Zadig (see the README)"],
-  no_library:[0,"USB library missing: run Install.bat again"]};
+async function bbPill(){ try{ const st = await api("/api/buzzers",{op:"status"}); const p=$("#bbpill"); p.textContent = st.running?t("bb.on_short"):t("bb.off_short"); p.className = "pill "+(st.running?"ok":"none"); return st; }catch(e){} }
+$("#bbbtn").onclick = ()=>{ P=null; page="buzzers"; renderSide(); renderBuzzers(); };
+const BB_RECEIVER = {ok:1, running:1, missing:0, no_driver:0, no_library:0};
 async function renderBuzzers(st){
   st = st || await api("/api/buzzers",{op:"status"});
   bbPill();
-  const tick=(ok,t)=>`<div>${ok?"✓":"✗"} ${esc(t)}</div>`;
-  const rc = BB_RECEIVER[st.receiver] || [0, st.receiver];
+  const tick=(ok,s)=>`<div>${ok?"✓":"✗"} ${esc(s)}</div>`;
+  const rc = st.receiver in BB_RECEIVER ? [BB_RECEIVER[st.receiver], t("bb.rx_"+st.receiver)] : [0, st.receiver];
   $("#main").innerHTML = `
-  <div class="head"><div><h2>Big Button buzzers</h2><div class="sub">Use Xbox 360 Big Button (Scene It) pads as the Buzz! buzzers in RPCS3</div></div></div>
-  <section class="step"><header><h3>Buzzers</h3><span class="hint"><span class="pill ${st.running?"ok":"none"}">${st.running?"Running":"Stopped"}</span></span></header>
-    <label class="switch"><input type="checkbox" id="bbtoggle" ${st.running?"checked":""}> Big Button buzzers on</label>
-    <div>${tick(rc[0], rc[1])}${st.titles.length ? tick(1, "RPCS3 input profile: "+st.titles.join(", ")) : tick(0, "Open Buzz! once in RPCS3 so it creates an input profile")}${st.mapped.length ? tick(1, "Players 1-4 mapped to the pads in: "+st.mapped.join(", ")) : `<div class="muted">Players 1-4 are mapped to the pads when you switch on.</div>`}</div>
-    <div class="muted">Keep the RPCS3 game window in front while you play: the pads type keys, and RPCS3 only reads the keyboard while it has focus. Switching off puts your previous RPCS3 controller settings back.</div>
-    <div class="log">${esc((st.log||[]).join("\n")) || "Press a button on a pad to see it here once the buzzers are on."}</div>
+  <div class="head"><div><h2>${t("bb.title")}</h2><div class="sub">${t("bb.sub")}</div></div></div>
+  <section class="step"><header><h3>${t("bb.buzzers")}</h3><span class="hint"><span class="pill ${st.running?"ok":"none"}">${st.running?t("srv.running"):t("srv.stopped")}</span></span></header>
+    <label class="switch"><input type="checkbox" id="bbtoggle" ${st.running?"checked":""}> ${t("bb.toggle")}</label>
+    <div>${tick(rc[0], rc[1])}${st.titles.length ? tick(1, t("bb.profile", {list:st.titles.join(", ")})) : tick(0, t("bb.no_profile"))}${st.mapped.length ? tick(1, t("bb.mapped", {list:st.mapped.join(", ")})) : `<div class="muted">${t("bb.map_on_start")}</div>`}</div>
+    <div class="muted">${t("bb.focus")}</div>
+    <div class="log">${esc((st.log||[]).join("\n")) || t("bb.no_log")}</div>
   </section>
-  <section class="step"><header><h3>How it works</h3><span class="hint">Pad → PC → RPCS3 → game</span></header>
-    <ol>
-      <li>The IR receiver passes every pad's presses to this PC over USB.</li>
-      <li>The bridge turns each pad's buttons into keys: pad 1 uses 1-7, pad 2 Q-U, pad 3 A-J, pad 4 Z-M; the d-pad is the arrow keys on every pad.</li>
-      <li>RPCS3 players 1-4 are set to the keyboard with those keys.</li>
-      <li>RPCS3's Buzz! emulation (1 controller = 4 buzzers) hands players 1-4 to the game as buzzers 1-4.</li>
-    </ol>
-    <div class="qwrap"><table class="qtable"><thead><tr><th>Pad button</th><th>Buzzer button</th></tr></thead><tbody>
-      <tr><td>Big button</td><td>Red buzzer</td></tr><tr><td>X (blue)</td><td>Blue</td></tr><tr><td>B (red)</td><td>Orange</td></tr>
-      <tr><td>A (green)</td><td>Green</td></tr><tr><td>Y (yellow)</td><td>Yellow</td></tr><tr><td>Start / Back / d-pad</td><td>Menus</td></tr>
+  <section class="step"><header><h3>${t("bb.how")}</h3><span class="hint">${t("bb.how_hint")}</span></header>
+    <ol><li>${t("bb.how1")}</li><li>${t("bb.how2")}</li><li>${t("bb.how3")}</li><li>${t("bb.how4")}</li></ol>
+    <div class="qwrap"><table class="qtable"><thead><tr><th>${t("bb.col_pad")}</th><th>${t("bb.col_buzzer")}</th></tr></thead><tbody>
+      <tr><td>${t("bb.big")}</td><td>${t("bb.red")}</td></tr><tr><td>${t("bb.x")}</td><td>${t("bb.blue")}</td></tr><tr><td>${t("bb.b")}</td><td>${t("bb.orange")}</td></tr>
+      <tr><td>${t("bb.a")}</td><td>${t("bb.green")}</td></tr><tr><td>${t("bb.y")}</td><td>${t("bb.yellow")}</td></tr><tr><td>${t("bb.menu_btns")}</td><td>${t("bb.menus")}</td></tr>
     </tbody></table></div>
   </section>`;
   $("#bbtoggle").onchange = async e=>{
     try{ renderBuzzers(await api("/api/buzzers",{op: e.target.checked?"start":"stop"})); }
     catch(err){ renderBuzzers(); }
   };
-  clearTimeout(bbTimer); bbTimer=setTimeout(()=>{ if(!P && $("#main h2")?.textContent==="Big Button buzzers") renderBuzzers(); }, 2000);
+  clearTimeout(bbTimer); bbTimer=setTimeout(()=>{ if(page==="buzzers") renderBuzzers(); }, 2000);
 }
 
-loadState().then(()=>{ srvPill(); bbPill(); const u=new URLSearchParams(location.search); const q=u.get("p"); if(q) openProject(q); else if(u.get("page")==="server") renderServer(); else if(u.get("page")==="buzzers") renderBuzzers(); });
+(async()=>{
+  S = await api("/api/state");
+  await loadLang(pickLang());
+  renderSide(); srvPill(); bbPill();
+  const u=new URLSearchParams(location.search); const q=u.get("p");
+  if(q) openProject(q); else if(u.get("page")==="server"){ page="server"; renderServer(); } else if(u.get("page")==="buzzers"){ page="buzzers"; renderBuzzers(); }
+})();
 </script>
 </body>
 </html>

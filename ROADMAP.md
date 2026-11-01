@@ -30,10 +30,11 @@
 4. **More languages for the trained voice** (trainer `--lang`, multilingual base model).
 5. **Online matches**: live games against remote friends (the Medius lobby / game-room stage the
    game never reaches today).
-6. **Pack themes**: theme names separate from the pack title, several themes in one pack (one
-   subject per theme in the "choose a subject" step), and, if the game allows it, adding a pack's
-   questions to one of the disc's own themes.
-7. **Buzz Pack Studio in several languages** (French and English first, translation files for more).
+6. **Pack themes in the game**: themes, renaming and theme-per-question are done in the app.
+   Next: each theme as its own subject in the "choose a subject" step (needs in-game testing),
+   then, if the game allows it, adding a pack's questions to one of the disc's own themes.
+7. **More Buzz Pack Studio languages**: English and French are done; others are one JSON file each
+   in `buzz_engine/i18n/`.
 8. **Buzz! Quiz TV, natively** (later, if wanted): packs already play there. Custom running orders,
    60 FPS and online would need Quiz TV's own scripts and code to be studied.
 

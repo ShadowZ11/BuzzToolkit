@@ -100,7 +100,8 @@ You're ready to make packs. From now on, just double-click **Start Buzz Pack Stu
 ## Make a pack
 
 1. **Create** a pack (name on the left).
-2. **Pack**: channel, language, "made by", pack number, host voice on/off.
+2. **Pack**: menu channel, language, "made by", pack number, host voice on/off, and the pack's
+   **themes** (see below).
 3. **Questions**: drop in files (CSV, text, Moodle XML, Buzz online XML, JSON), pull from
    Open Trivia DB / OpenTriviaQA / The Trivia API, or write your own (picture questions and
    Point Stealer picture answers included). The app checks the game's limits
@@ -138,6 +139,35 @@ Each question carries its own line, in the pack's language.
   ```
 
 The line is shown on screen; the host reads the question itself.
+
+### Themes
+
+A pack has one or more **themes**. The **main theme** is the subject the game shows for the pack
+(for example `2010s MUSIC`), so give it the name you want to see in the game, whatever the pack
+itself is called. Renaming the pack also renames the main theme until you rename the theme
+yourself.
+
+* Add, rename or delete themes in step 1, and pick which one is the main theme.
+* Put questions in a theme while writing them, or tick several under **All questions** and move
+  them. Deleting a theme moves its questions to the main theme.
+* When importing, tick **One theme per category** to sort imported questions into themes named
+  after their source category (Open Trivia DB, The Trivia API, a CSV `category` column...).
+* In files: a CSV column or JSON key `theme`, or a `T:` line in a `Q:`/`A:` text file.
+* High Stakes announces each question's own theme when it has no announced subject.
+
+The game shows only the main theme as the pack's subject for now; showing each theme as its own
+subject is planned.
+
+The **menu channel** (Knowledge, TV & Cinema, Lifestyle, Music) is one of the game's four fixed
+channels and can't be extended; the pack's themes go inside it.
+
+### Buzz Pack Studio in your language
+
+The app follows your browser's language when it has a translation (English and French so far);
+change it with **Language** at the bottom left. Error messages from the toolkit are translated
+too. To add a language, copy `buzz_engine/i18n/en.json` to `<code>.json` (for example `es.json`),
+translate the texts (keep the `{name}` placeholders) and restart the app. The optional `errors`
+list translates the toolkit's English messages with regular expressions (see `fr.json`).
 
 ### Pack numbers
 

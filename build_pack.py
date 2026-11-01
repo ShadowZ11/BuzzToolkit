@@ -147,6 +147,20 @@ INTROS = {
 }
 
 
+DEFAULT_DESCRIPTION = "QUESTIONS ON %s"
+DESCRIPTIONS = {"GBR": "QUESTIONS ON %s", "FRA": "QUESTIONS SUR %s", "ESP": "PREGUNTAS SOBRE %s",
+                "PRT": "PERGUNTAS SOBRE %s", "DEU": "FRAGEN ZU %s", "ITA": "DOMANDE SU %s",
+                "NLD": "VRAGEN OVER %s", "POL": "PYTANIA: %s", "CZE": "OTÁZKY: %s", "CRO": "PITANJA: %s",
+                "RUS": "ВОПРОСЫ: %s", "GRC": "ΕΡΩΤΗΣΕΙΣ: %s"}
+
+
+def description(C, lang):
+    d, title = C["text"]["description"], C["text"]["menu_name"]
+    if d == DEFAULT_DESCRIPTION % title:
+        return DESCRIPTIONS.get(lang, DEFAULT_DESCRIPTION) % title
+    return d
+
+
 def intro_line(lang, k, about=None, theme=""):
     """An `about` ending in ! ? . or ; (Greek "?") is used as the whole line."""
     about = (about or "").strip().upper()
@@ -434,8 +448,10 @@ def build(content_path, overrides=None):
     num = int(C["pack_number"])
     name = C.get("round_name", "custom%d" % num).lower()
     category = C.get("category", "Knowledge")
-    subject_key = C["subject_key"]
-    topic = C["topic"].upper()
+    themes = C.get("themes") or [{"id": "t1", "name": C["text"]["subject"], "subject_key": C["subject_key"]}]
+    subject_key = themes[0]["subject_key"]
+    theme_names = {t["id"]: t["name"].upper() for t in themes}
+    topic = themes[0]["name"].upper()
     slots_cfg = dict(DEFAULT_SLOTS, **C.get("slots", {}))
     img_dir = os.path.join(os.path.dirname(os.path.abspath(content_path)), "images")
     images, missing_pictures = buzz_sdi.prepare_pictures(img_dir, C["images"], os.path.join(
@@ -449,6 +465,8 @@ def build(content_path, overrides=None):
     pst = [[check(x[0], MAX_Q, "question")] + [int(p) for p in x[1:5]] for x in C["point_stealer"]]
     std_about = [row_meta(x, 5).get("about") for x in C["standard"]]
     pic_about = [row_meta(x, 6).get("about") for x in C["picture"]]
+    std_theme = [theme_names.get(row_meta(x, 5).get("theme"), topic) for x in C["standard"]]
+    pic_theme = [theme_names.get(row_meta(x, 6).get("theme"), topic) for x in C["picture"]]
     files = {}
     lang = C.get("language", LANG).upper()
     if not (len(lang) == 3 and lang.isalpha()):
@@ -484,11 +502,11 @@ def build(content_path, overrides=None):
     for k, (kind, b) in enumerate(order):
         if kind == "standard":
             q = std[b]
-            strs = [q[0], intro_line(lang, k, std_about[b], topic)] + q[1:5]
+            strs = [q[0], intro_line(lang, k, std_about[b], std_theme[b])] + q[1:5]
             tags = TEXT_TAGS
         else:
             q = pic[b]
-            strs = [q[1], intro_line(lang, k, pic_about[b], topic)] + q[2:6]
+            strs = [q[1], intro_line(lang, k, pic_about[b], pic_theme[b])] + q[2:6]
             tags = PIC_TAGS
         bank.append({"kind": kind, "item": b, "strings": strs, "speech": speech_for((kind, b)),
                      "answers": [(0, 5), (1, 1), (2, 1), (3, 1)], "tags": tags,
@@ -561,7 +579,7 @@ def build(content_path, overrides=None):
         "%s_%s %d\r\n" % (name, r, 10 + i) for i, r in enumerate(sorted(round_files))).encode()
 
     # ---- pack name text
-    texts = [C["text"]["subject"], C["text"]["description"], C["text"]["menu_name"]]
+    texts = [themes[0]["name"], description(C, lang), C["text"]["menu_name"]]
     files[P + "NAMEDTEXT/default.hdr"], files[P + "NAMEDTEXT/default.hst"] = encode_all(texts)
     keys = [subject_key, "PackDescPk%dPack" % num, "PackTitlePk%dPack" % num]
     files[P + "NAMEDTEXT/default.ndx"] = ("﻿" + "".join(

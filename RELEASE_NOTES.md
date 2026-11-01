@@ -11,6 +11,28 @@
   questions**, or in files: CSV column `about`/`sujet`, JSON key `about`, `S:` line in text files.
   `.buzz.txt` export keeps it.
 
+## Themes
+* A pack now has **themes**. The main theme is the subject the game shows, and it can be renamed
+  without renaming the pack (renaming the pack still renames a theme you never renamed).
+* Add, rename, delete and reorder themes in step 1; put questions in a theme while writing them or
+  several at once under **All questions** (with a filter by theme).
+* Import can create **one theme per source category**. Files can name a question's theme: CSV
+  column or JSON key `theme`, `T:` line in text files; `.buzz.txt` export keeps it.
+* High Stakes announces a question's own theme when it has no announced subject.
+* Packs made before themes get one theme from their subject automatically.
+* Showing each theme as its own subject in the game is not done yet: only the main theme is the
+  pack's subject in the game.
+
+## Buzz Pack Studio in English and French
+* The whole app is translated; it follows the browser's language, or pick one under **Language**.
+* The toolkit's error and progress messages are translated too.
+* Translations are plain JSON files in `buzz_engine/i18n/`: adding a language means adding a file.
+* The game's four menu channels have readable names and an explanation.
+
+## Fixed
+* A new pack's default description ("QUESTIONS ON …") was English in every language; it now
+  follows the pack's language until you write your own.
+
 ## Buzz! Quiz TV
 * Documented: packs also play on Buzz! Quiz TV, since they install into its download folder. The
   README lists what works there.
