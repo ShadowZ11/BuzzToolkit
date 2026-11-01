@@ -285,6 +285,7 @@ function render(){
       <span class="muted" id="gosummary"></span>
     </div>
     <div class="row"><button class="btn" id="pubbtn">${t("g.publish")}</button><span class="muted">${t("g.publish_help")}</span></div>
+    <div class="row"><button class="btn" id="expbtn">${t("g.export")}</button><span class="muted">${t("g.export_help")}</span></div>
     <div id="golog"></div>
   </section>`;
   head();
@@ -298,6 +299,7 @@ function render(){
   $("#f-audio").onchange = e=>save({audio:e.target.checked}).then(voiceNote);
   $("#preset").onchange = e=>{ const p=S.presets[e.target.value]; if(p){ save({rounds4p:p}).then(renderTracks); } };
   $("#gobtn").onclick = startGenerate;
+  $("#expbtn").onclick = async()=>{ const r = await api("/api/export",{id:P.id}); toast(t("g.exported", {path:r.zip})); api("/api/open",{path:r.zip}); };
   $("#pubbtn").onclick = async()=>{ const r = await api("/api/publish",{id:P.id}); toast(tn("g.published", r.quizzes, {q:r.questions})); };
   renderThemes(); renderQ(); renderTracks(); renderRoundsStatus(); voiceNote();
   if(lastResult) showResult(lastResult);
@@ -344,7 +346,7 @@ function renderQ(){
   const b = $("#qbody");
   if(qtab==="import"){
     b.innerHTML = `
-      <div class="drop" id="drop">${t("imp.drop")}<br><span style="font-size:.85rem">${t("imp.formats")}</span><input type="file" id="files" multiple hidden accept=".csv,.tsv,.txt,.xml,.json"></div>
+      <div class="drop" id="drop">${t("imp.drop")}<br><span style="font-size:.85rem">${t("imp.formats")}</span><input type="file" id="files" multiple hidden accept=".csv,.tsv,.txt,.xml,.json,.zip,image/*"></div>
       <div class="grid" style="align-items:end">
         <label class="f">${t("imp.source")}<select id="src"><option value="">${t("common.choose")}</option><option value="opentdb">Open Trivia DB (CC BY-SA)</option><option value="otqa">OpenTriviaQA (CC BY-SA)</option><option value="triviaapi">The Trivia API (${t("imp.noncommercial")})</option></select></label>
         <label class="f">${t("imp.category")}<select id="srccat"><option value="">${t("imp.any")}</option></select></label>

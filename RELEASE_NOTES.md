@@ -29,7 +29,23 @@
 * Translations are plain JSON files in `buzz_engine/i18n/`: adding a language means adding a file.
 * The game's four menu channels have readable names and an explanation.
 
+## Pictures in question files
+* **Point Stealer questions can come from files**: four `IMG:` lines in text files, or `image1` to
+  `image4` in CSV/JSON; the first picture is the right answer.
+* Picture paths are found **relative to the question file** (or its `images` folder) instead of
+  the toolkit's folder, so a quiz folder can be shared as it is.
+* Buzz Pack Studio takes the question file **together with its pictures**, or a **.zip** of both.
+* A missing or unreadable picture now skips only that question (with the reason) instead of
+  stopping the whole import.
+* **Export to share (.zip)**: questions and pictures in one file anyone can import. `.buzz.txt`
+  export now includes Point Stealer questions; `export -o pack.zip` on the command line.
+* New example: `examples/picture_quiz/`.
+
 ## Fixed
+* **Russian and Greek imports kept only one question**: duplicate detection ignored every
+  non-Latin letter, so all those questions looked identical.
+* Picture questions with the same text but different pictures ("Which flag is this?") were
+  dropped as duplicates.
 * A new pack's default description ("QUESTIONS ON …") was English in every language; it now
   follows the pack's language until you write your own.
 

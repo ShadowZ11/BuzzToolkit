@@ -1,0 +1,38 @@
+#TITLE:Flags
+#PACK:95
+#CATEGORY:Knowledge
+#DESCRIPTION:Picture questions and Point Stealer picture answers
+
+Q: Which country's flag is this?
+IMG: images/france.png
+A: France
+- Italy
+- Belgium
+- Romania
+
+Q: Which country's flag is this?
+S: a flag from Asia
+IMG: images/japan.png
+A: Japan
+- South Korea
+- Bangladesh
+- Palau
+
+Q: Which country's flag is this?
+IMG: images/germany.png
+A: Germany
+- Belgium
+- Austria
+- Spain
+
+Q: Which of these is the flag of Italy?
+IMG: images/italy.png
+IMG: images/france.png
+IMG: images/belgium.png
+IMG: images/netherlands.png
+
+Q: Which of these is the flag of the Netherlands?
+IMG: images/netherlands.png
+IMG: images/germany.png
+IMG: images/france.png
+IMG: images/japan.png

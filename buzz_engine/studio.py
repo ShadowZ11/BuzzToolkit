@@ -185,9 +185,9 @@ def state():
                       for t in games.installed_games(settings().get("rpcs3"))]}
 
 
-def save_upload(pid, name, b64):
-    """Uploaded file (base64) -> path inside the project's uploads folder."""
-    d = os.path.join(PROJECTS, pid, "uploads")
+def save_upload(pid, name, b64, sub=None):
+    """Uploaded file (base64) -> path inside the project's uploads folder (or a subfolder)."""
+    d = os.path.join(PROJECTS, pid, "uploads", *([sub] if sub else []))
     os.makedirs(d, exist_ok=True)
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(name)) or "upload"
     p = os.path.join(d, safe)
@@ -254,7 +254,8 @@ def _import(pid, sources, limit=None, themes_from_category=False):
     ppath = project_path(pid)
     qs = []
     for s in sources:
-        qs += importers.load(s)
+        work = os.path.splitext(s)[0] + "_files" if s.lower().endswith(".zip") else None
+        qs += importers.load(s, workdir=work)
     existing = importers.parse_json(dict(pack, _dir=os.path.dirname(ppath)))
     seen = {content.key(content.normalise(q)) for q in existing}
     if themes_from_category:
@@ -262,7 +263,8 @@ def _import(pid, sources, limit=None, themes_from_category=False):
     kept, rejected = content.select(qs, uppercase=pack.get("uppercase", True), limit=limit)
     dup = [q for q in kept if content.key(q) in seen]
     kept = [q for q in kept if content.key(q) not in seen]
-    content.add_to_pack(pack, kept, os.path.dirname(ppath))
+    lost = content.add_to_pack(pack, kept, os.path.dirname(ppath))
+    rejected += [(q, [why]) for q, why in lost]
     save(pid, pack)
     reasons = {}
     for _, why in rejected:
@@ -270,14 +272,21 @@ def _import(pid, sources, limit=None, themes_from_category=False):
             reasons[w] = reasons.get(w, 0) + 1
     if dup:
         reasons["already in the pack"] = len(dup)
-    return {"found": len(qs), "added": len(kept), "skipped": {tr(k): v for k, v in reasons.items()},
+    return {"found": len(qs), "added": len(kept) - len(lost), "skipped": {tr(k): v for k, v in reasons.items()},
             "project": project_view(pid)}
 
 
 def act_import(a):
+    """Dropped files land together in one folder, so a quiz file finds the pictures dropped
+    with it by name; pictures are not imported on their own."""
     sources = []
+    batch = time.strftime("%Y%m%d_%H%M%S")
     for f in a.get("files", []):
-        sources.append(save_upload(a["id"], f["name"], f["data"]))
+        path = save_upload(a["id"], f["name"], f["data"], sub=batch)
+        if os.path.splitext(path)[1].lower() in importers.QUIZ_EXT | {".zip"}:
+            sources.append(path)
+    if a.get("files") and not sources and not (a.get("online") or a.get("url")):
+        raise ValueError("drop the quiz file together with its pictures (or a .zip of both)")
     if a.get("online"):
         sources.append(a["online"])
     if a.get("url"):
@@ -306,7 +315,9 @@ def act_add(a):
     kept, rejected = content.select([q], uppercase=pack.get("uppercase", True))
     if rejected:
         raise ValueError("; ".join(rejected[0][1]))
-    content.add_to_pack(pack, kept, os.path.dirname(project_path(a["id"])))
+    lost = content.add_to_pack(pack, kept, os.path.dirname(project_path(a["id"])))
+    if lost:
+        raise ValueError(lost[0][1])
     save(a["id"], pack)
     return project_view(a["id"])
 
@@ -402,6 +413,15 @@ def act_theme(a):
     _sync_main(pack)
     save(a["id"], pack)
     return project_view(a["id"])
+
+
+def act_export(a):
+    from buzz_engine import sharing
+    pack = load(a["id"])
+    out_dir = os.path.join(PROJECTS, a["id"], "output")
+    os.makedirs(out_dir, exist_ok=True)
+    out = os.path.join(out_dir, "%s_PACK%04d.zip" % (sharing.file_title(pack), pack["pack_number"]))
+    return {"zip": sharing.export_zip(pack, os.path.dirname(project_path(a["id"])), out)}
 
 
 def act_delete(a):
@@ -550,7 +570,7 @@ def act_setup_pc(a):
 
 
 ACTIONS = {"new": act_new, "save": act_save, "import": act_import, "add": act_add, "delete": act_delete,
-           "about": act_about, "assign": act_assign, "theme": act_theme,
+           "about": act_about, "export": act_export, "assign": act_assign, "theme": act_theme,
            "generate": act_generate, "install": act_install, "settings": act_settings, "hook": act_hook,
            "open": act_open, "opentdb": act_opentdb, "publish": act_publish, "server": act_server,
            "catalog": act_catalog, "setup_pc": act_setup_pc, "keys": act_keys, "ffmpeg": act_ffmpeg,

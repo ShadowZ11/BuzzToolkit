@@ -117,7 +117,7 @@
   "kind.point_stealer": "Point Stealer",
 
   "imp.drop": "Drop quiz files here or <u>browse</u>",
-  "imp.formats": "CSV · text (Aiken, Q:/A:, OpenTriviaQA, .buzz.txt) · XML (Moodle, Buzz online quiz, generic) · JSON",
+  "imp.formats": "CSV · text (Aiken, Q:/A:, OpenTriviaQA, .buzz.txt) · XML (Moodle, Buzz online quiz, generic) · JSON · .zip with pictures<br>Drop the pictures together with the quiz file, or a .zip of both.",
   "imp.source": "Online source",
   "imp.noncommercial": "non-commercial",
   "imp.category": "Category",
@@ -202,6 +202,9 @@
   "g.go": "Generate PKG",
   "g.publish": "Publish to MyBuzz (online quizzes)",
   "g.publish_help": "Also puts this pack's questions on your own Buzz server as online quizzes: nothing to install, play them from MyBuzz.",
+  "g.export": "Export to share (.zip)",
+  "g.export_help": "The pack's questions and pictures as a .zip anyone can import into Buzz Pack Studio. No game data.",
+  "g.exported": "Exported: {path}",
   "g.published_one": "Published {q} questions as {n} online quiz",
   "g.published_other": "Published {q} questions as {n} online quizzes",
   "g.with_voice": "with host voice",

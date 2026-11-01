@@ -19,6 +19,10 @@ Files are recognised by extension and content:
               attribute or a separate <correct>/<answer> element)
   .json       OpenTDB / Trivia API responses, our pack JSON, or a list of objects with
               question / correct / incorrect keys
+  .zip        a quiz file (or several) with its pictures
+Pictures: a relative path is looked up next to the quiz file (also in an images/ folder there).
+A question with several pictures and no answers is a Point Stealer question: the first picture
+is the right answer (text: one IMG: line per picture; CSV/JSON: image1..image4 or images).
 """
 import base64
 import csv
@@ -29,9 +33,14 @@ import re
 import time
 import urllib.parse
 import urllib.request
+import tempfile
 import xml.etree.ElementTree as ET
+import zipfile
 
 UA = {"User-Agent": "BuzzPackEngine/1.0 (custom quiz packs for Buzz! Quiz World)"}
+QUIZ_EXT = {".csv", ".tsv", ".txt", ".xml", ".json"}
+IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+ZIP_LIMIT = 500 * 1024 * 1024          # total unpacked size accepted from a .zip
 
 # attribution for the pack credits page, by question "source" prefix
 LICENCES = {
@@ -188,9 +197,18 @@ def parse_json(data):
                for x in data["standard"]]
         img = data.get("images", [])
         base = data.get("_dir", ".")
+        src = data.get("image_sources", {})
+        # original file names, so content.key matches the same pictures imported again
+        names = lambda nums: {"pic_names": [os.path.basename(str(src.get(img[n - 1], img[n - 1])).replace("\\", "/")).lower()
+                                            for n in nums]}
         out += [dict({"kind": "picture", "image": os.path.join(base, "images", img[x[0] - 1] + ".png"),
-                      "question": x[1], "correct": x[2], "wrong": x[3:6], "source": "pack"}, **about(x, 6))
+                      "question": x[1], "correct": x[2], "wrong": x[3:6], "source": "pack"}, **about(x, 6),
+                     **names([x[0]]))
                 for x in data.get("picture", [])]
+        out += [dict({"kind": "point_stealer", "question": x[0], "correct": 0, "source": "pack",
+                      "images": [os.path.join(base, "images", img[n - 1] + ".png") for n in x[1:5]]},
+                     **names(x[1:5]))
+                for x in data.get("point_stealer", [])]
         out += [{"kind": "all_that_apply", "question": x[0], "answers": [a for a, _ in x[1:5]],
                  "right": [bool(t) for _, t in x[1:5]], "source": "pack"} for x in data.get("all_that_apply", [])]
         return out
@@ -214,10 +232,28 @@ def _pick(r, names):
     return None
 
 
+def _from_record_pictures(r, q):
+    imgs = _pick(r, ["images", "pictures"])
+    if isinstance(imgs, str):
+        imgs = [i.strip() for i in imgs.split("|")]
+    if not imgs:
+        low = {str(k).strip().lower().replace(" ", "_"): v for k, v in r.items()}
+        imgs = [low[k] for k in sorted(low) if re.fullmatch(r"(image|picture|img)_?\d", k) and low[k]]
+    out = {"question": q, "images": list(imgs), "source": "record"}
+    for k, names in (("category", ["category", "topic", "subject"]), ("difficulty", ["difficulty", "level"]),
+                     ("theme", ["theme", "thème", "theme_name"])):
+        v = _pick(r, names)
+        if v:
+            out[k] = v
+    return _pictures(out)
+
+
 def _from_record(r):
     q = _pick(r, _Q)
     if not q:
         return None
+    if _pick(r, ["images", "pictures", "image1", "image_1", "picture1"]):
+        return _from_record_pictures(r, q)
     c = _pick(r, _C)
     wrong = _pick(r, _W)
     if isinstance(wrong, str):
@@ -251,6 +287,17 @@ def parse_csv(text):
 
 
 # ------------------------------------------------------------------------------ text
+def _pictures(q):
+    """One picture: a picture question. Several: a Point Stealer question, first one right."""
+    imgs = [i for i in q.pop("images", None) or [] if i]
+    if len(imgs) == 1:
+        q.update(kind="picture", image=imgs[0])
+    elif imgs:
+        q.update(kind="point_stealer", images=imgs, correct=0)
+        q.pop("wrong", None)
+    return q
+
+
 def parse_text(text):
     if re.search(r"^#Q ", text, re.M):
         return parse_opentriviaqa(text)
@@ -281,20 +328,20 @@ def parse_text(text):
             s = l.strip()
             if re.match(r"^Q[:.]\s", s, re.I):
                 if cur:
-                    out.append(cur)
+                    out.append(_pictures(cur))
                 cur = {"question": s[2:].strip(), "correct": None, "wrong": [], "source": "text"}
             elif cur and re.match(r"^A[:.]\s", s, re.I):
                 cur["correct"] = s[2:].strip()
             elif cur and re.match(r"^[-*]\s", s):
                 cur["wrong"].append(s[2:].strip())
             elif cur and re.match(r"^(IMG|IMAGE|PIC)[:.]\s", s, re.I):
-                cur["image"], cur["kind"] = s.split(":", 1)[1].strip(), "picture"
+                cur.setdefault("images", []).append(s.split(":", 1)[1].strip())
             elif cur and re.match(r"^S[:.]\s", s, re.I):
                 cur["about"] = s[2:].strip()
             elif cur and re.match(r"^T[:.]\s", s, re.I):
                 cur["theme"] = s[2:].strip()
         if cur:
-            out.append(cur)
+            out.append(_pictures(cur))
         return out
     # pipe lines
     for l in lines:
@@ -363,7 +410,58 @@ def parse_xml(text):
 
 
 # ------------------------------------------------------------------------------ dispatcher
-def load(source):
+def extract_zip(path, dest):
+    """Unpack a .zip safely (no paths outside dest, bounded size) -> dest."""
+    with zipfile.ZipFile(path) as z:
+        members = [m for m in z.infolist() if not m.is_dir()]
+        if sum(m.file_size for m in members) > ZIP_LIMIT:
+            raise ValueError("the zip is too large to import")
+        root = os.path.realpath(dest)
+        for m in members:
+            target = os.path.realpath(os.path.join(dest, m.filename))
+            if not target.startswith(root + os.sep):
+                raise ValueError("the zip contains an unsafe path: %s" % m.filename)
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with z.open(m) as src, open(target, "wb") as dst:
+                dst.write(src.read())
+    return dest
+
+
+def quiz_files(folder):
+    """Quiz files under folder (pictures and everything else left out), sorted."""
+    out = []
+    for d, _, files in os.walk(folder):
+        out += [os.path.join(d, f) for f in files
+                if os.path.splitext(f)[1].lower() in QUIZ_EXT and not f.startswith(".")]
+    return sorted(out)
+
+
+def resolve_image(src, base):
+    """A picture path from a quiz file -> something content can open (URL or local path)."""
+    s = str(src or "").strip()
+    if not s or not base or re.match(r"https?://", s):
+        return s
+    if re.match(r"https?://", base):
+        return urllib.parse.urljoin(base, s)
+    p = s.replace("\\", "/")
+    if os.path.isabs(p) or re.match(r"^[A-Za-z]:/", p):
+        return s
+    name = os.path.basename(p)
+    candidates = [os.path.join(base, p), os.path.join(base, name), os.path.join(base, "images", name)]
+    return next((c for c in candidates if os.path.isfile(c)), candidates[0])
+
+
+def _with_pictures(qs, base):
+    for q in qs:
+        if q.get("image"):
+            q["image"] = resolve_image(q["image"], base)
+        if q.get("images"):
+            q["images"] = [resolve_image(i, base) for i in q["images"]]
+    return qs
+
+
+def load(source, workdir=None):
+    """workdir: where a .zip is unpacked (default: a new temporary folder)."""
     s = str(source)
     if s.startswith("opentdb:"):
         p = dict(urllib.parse.parse_qsl(s[8:]))
@@ -373,23 +471,31 @@ def load(source):
     if s.startswith("triviaapi:"):
         p = dict(urllib.parse.parse_qsl(s[10:]))
         return triviaapi(int(p.get("limit", 50)), p.get("categories"), p.get("difficulties"), p.get("tags"))
+    if not re.match(r"https?://", s) and os.path.splitext(s)[1].lower() == ".zip":
+        dest = extract_zip(s, workdir or tempfile.mkdtemp(prefix="buzz_zip_"))
+        found = quiz_files(dest)
+        if not found:
+            raise ValueError("no quiz file in the zip (CSV, text, XML or JSON)")
+        return [q for f in found for q in load(f)]
     if re.match(r"https?://", s):
         req = urllib.request.Request(s, headers=UA)
         with urllib.request.urlopen(req, timeout=30) as r:
             raw = r.read().decode("utf-8", "replace")
         ext = os.path.splitext(urllib.parse.urlparse(s).path)[1].lower()
+        base = s
     else:
         with open(s, encoding="utf-8-sig", errors="replace") as f:
             raw = f.read()
         ext = os.path.splitext(s)[1].lower()
+        base = os.path.dirname(os.path.abspath(s))
     head = raw.lstrip()[:1]
     if ext == ".json" or head in "[{":
         data = json.loads(raw)
         if isinstance(data, dict) and "standard" in data and not re.match(r"https?://", s):
-            data["_dir"] = os.path.dirname(os.path.abspath(s))
-        return parse_json(data)
+            data["_dir"] = base
+        return _with_pictures(parse_json(data), base)
     if ext == ".xml" or head == "<":
-        return parse_xml(raw)
+        return _with_pictures(parse_xml(raw), base)
     if ext in (".csv", ".tsv"):
-        return parse_csv(raw)
-    return parse_text(raw)
+        return _with_pictures(parse_csv(raw), base)
+    return _with_pictures(parse_text(raw), base)

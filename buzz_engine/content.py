@@ -121,8 +121,16 @@ def unsupported(s, lang=None):
 
 
 def key(q):
-    """Duplicate detection key (question text, case/punctuation-insensitive)."""
-    return re.sub(r"[^a-z0-9]", "", q["question"].lower())
+    """Duplicate detection key: question text (case/punctuation-insensitive, any script) plus
+    the picture file names, since picture questions often share their text."""
+    k = re.sub(r"[\W_]+", "", q["question"].casefold())
+    if q.get("pic_names") is not None:
+        names = q["pic_names"]
+    else:
+        pics = [q["image"]] if q.get("kind") == "picture" and q.get("image") else (
+            q.get("images") or [] if q.get("kind") == "point_stealer" else [])
+        names = [os.path.basename(str(p).replace("\\", "/")).lower() for p in pics]
+    return k + ("|" + "|".join(names) if names else "")
 
 
 def normalise(q, uppercase=False):
@@ -260,44 +268,69 @@ def new_pack(title, pack_number, category="Knowledge", description=None, upperca
     }
 
 
+class ImageError(ValueError):
+    pass
+
+
 def _image_file(src, images_dir, cache_dir=None):
     """Copy/download an image into the pack's images folder as PNG -> file stem."""
     from PIL import Image
     os.makedirs(images_dir, exist_ok=True)
     stem = "img_" + hashlib.sha1(str(src).encode()).hexdigest()[:10]
     dst = os.path.join(images_dir, stem + ".png")
-    if not os.path.exists(dst):
-        if re.match(r"https?://", str(src)):
-            import urllib.request
-            tmp = dst + ".download"
+    if os.path.exists(dst):
+        return stem
+    name = os.path.basename(str(src).rstrip("/")) or str(src)
+    if re.match(r"https?://", str(src)):
+        import urllib.request
+        tmp = dst + ".download"
+        try:
             req = urllib.request.Request(src, headers={"User-Agent": "BuzzPackEngine/1.0"})
             with urllib.request.urlopen(req, timeout=30) as r, open(tmp, "wb") as f:
                 shutil.copyfileobj(r, f)
-            Image.open(tmp).convert("RGB").save(dst)
-            os.remove(tmp)
-        else:
-            Image.open(src).convert("RGB").save(dst)
+        except OSError:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+            raise ImageError("image download failed: %s" % name)
+        src = tmp
+    elif not os.path.isfile(src):
+        raise ImageError("image not found: %s" % name)
+    try:
+        Image.open(src).convert("RGB").save(dst)
+    except Exception:
+        raise ImageError("image could not be read: %s" % name)
+    finally:
+        if str(src).endswith(".download") and os.path.exists(src):
+            os.remove(src)
     return stem
 
 
 def add_to_pack(pack, questions, pack_dir):
-    """Append normalised questions to a pack JSON dict (pictures copied into pack_dir/images)."""
+    """Append normalised questions to a pack JSON dict (pictures copied into pack_dir/images).
+    -> [(question, reason)] of questions left out because a picture could not be used."""
     img_dir = os.path.join(pack_dir, "images")
 
-    def image_no(src):
-        stem = _image_file(src, img_dir)
-        pack.setdefault("image_sources", {})[stem] = str(src)
-        if stem not in pack["images"]:
-            pack["images"].append(stem)
-        return pack["images"].index(stem) + 1
+    def image_nos(srcs):
+        stems = [_image_file(src, img_dir) for src in srcs]          # all or nothing
+        for src, stem in zip(srcs, stems):
+            pack.setdefault("image_sources", {})[stem] = str(src)
+            if stem not in pack["images"]:
+                pack["images"].append(stem)
+        return [pack["images"].index(stem) + 1 for stem in stems]
 
     from .importers import credit
     credits = pack.setdefault("credits", [])
+    skipped = []
     for q in questions:
+        k = q["kind"]
+        try:
+            nums = image_nos([q["image"]] if k == "picture" else q["images"] if k == "point_stealer" else [])
+        except ImageError as e:
+            skipped.append((q, str(e)))
+            continue
         c = credit(q.get("source", ""))
         if c and c not in credits:
             credits.append(c)
-        k = q["kind"]
         m = {"about": q["about"]} if q.get("about") else {}
         if q.get("theme") and k in ("standard", "picture"):
             tid = theme_for(pack, q["theme"])["id"]
@@ -307,14 +340,13 @@ def add_to_pack(pack, questions, pack_dir):
         if k == "standard":
             pack["standard"].append([q["question"], q["correct"]] + q["wrong"][:3] + meta)
         elif k == "picture":
-            pack["picture"].append([image_no(q["image"]), q["question"], q["correct"]] + q["wrong"][:3] + meta)
+            pack["picture"].append([nums[0], q["question"], q["correct"]] + q["wrong"][:3] + meta)
         elif k == "all_that_apply":
             pack["all_that_apply"].append([q["question"]] + [[a, bool(r)] for a, r in zip(q["answers"], q["right"])])
         elif k == "point_stealer":
-            nums = [image_no(i) for i in q["images"]]
             c = q.get("correct", 0)
             pack["point_stealer"].append([q["question"], nums[c]] + [n for i, n in enumerate(nums) if i != c])
-    return pack
+    return skipped
 
 
 def report(pack):

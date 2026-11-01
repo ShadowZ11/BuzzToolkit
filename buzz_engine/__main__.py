@@ -8,6 +8,7 @@
   python -m buzz_engine build packs/hp/pack.json [--no-voice] [--install]
   python -m buzz_engine plans --set pack="Point Builder, Point Stealer, random(Pie Fight|Pass the Bomb)" [--install]
   python -m buzz_engine export packs/hp/pack.json -o hp.buzz.txt   (shareable text, no game data)
+  python -m buzz_engine export packs/hp/pack.json -o hp.zip        (same, with its pictures)
   python -m buzz_engine sources             (Open Trivia DB categories)
   python -m buzz_engine studio              (the app: everything above behind one page)
 
@@ -84,8 +85,9 @@ def import_into(pack, sources, pack_path, a):
                                     difficulty=a.difficulty and a.difficulty.split(","),
                                     categories=a.only_category and a.only_category.split(","))
     kept = [q for q in kept if content.key(q) not in seen]
-    content.add_to_pack(pack, kept, os.path.dirname(os.path.abspath(pack_path)))
-    print("added %d questions, skipped %d" % (len(kept), len(rejected)))
+    lost = content.add_to_pack(pack, kept, os.path.dirname(os.path.abspath(pack_path)))
+    rejected += [(q, [why]) for q, why in lost]
+    print("added %d questions, skipped %d" % (len(kept) - len(lost), len(rejected)))
     reasons = {}
     for _, why in rejected:
         for w in why:
@@ -95,13 +97,22 @@ def import_into(pack, sources, pack_path, a):
 
 
 def source_headers(sources):
-    """Pack details from .buzz.txt headers (#TITLE:, #PACK:, ...) of local text sources."""
+    """Pack details from .buzz.txt headers (#TITLE:, #PACK:, ...) of local text sources (also
+    inside a .zip)."""
     meta = {}
     for s in sources:
+        texts = []
         if os.path.isfile(s) and s.lower().endswith(".txt"):
             with open(s, encoding="utf-8-sig", errors="replace") as f:
-                for k, v in importers.header(f.read()).items():
-                    meta.setdefault(k, v)
+                texts.append(f.read())
+        elif os.path.isfile(s) and s.lower().endswith(".zip"):
+            import zipfile
+            with zipfile.ZipFile(s) as z:
+                texts += [z.read(n).decode("utf-8-sig", "replace") for n in sorted(z.namelist())
+                          if n.lower().endswith(".txt")]
+        for t in texts:
+            for k, v in importers.header(t).items():
+                meta.setdefault(k, v)
     return meta
 
 
@@ -199,38 +210,16 @@ def cmd_plans(a):
 
 
 def cmd_export(a):
-    """Pack JSON -> shareable .buzz.txt (headers + Q/A blocks; pictures as their original
-    URL/path, so a shared file carries no game or image data)."""
+    """Pack JSON -> shareable .buzz.txt (pictures as their original URL/path), or a .zip that
+    also carries the pictures (when -o ends in .zip). No game data either way."""
+    from buzz_engine import sharing
     pack = load_pack(a.pack)
-    src = pack.get("image_sources", {})
-    L = ["#TITLE:%s" % pack["text"]["menu_name"], "#PACK:%d" % pack["pack_number"],
-         "#CATEGORY:%s" % pack["category"], "#DESCRIPTION:%s" % pack["text"]["description"]]
-    if pack.get("author"):
-        L.append("#AUTHOR:%s" % pack["author"])
-    for players in ("4p", "8p"):
-        spec = pack.get("rounds", {}).get(players)
-        if spec:
-            L.append("#ROUNDS%s:%s" % (players.upper(), ", ".join(
-                "random(%s)" % "|".join(x["random"]) if isinstance(x, dict) else x for x in spec)))
-    for c in pack.get("credits", []):
-        L.append("#CREDIT:%s" % c)
-    L.append("")
-    from build_pack import row_meta
-
-    names = {t["id"]: t["name"] for t in pack.get("themes", [])}
-
-    def about(q, n):
-        m = row_meta(q, n)
-        return (["S: " + m["about"]] if m.get("about") else []) + (
-            ["T: " + names[m["theme"]]] if m.get("theme") in names else [])
-    for q in pack["standard"]:
-        L += ["Q: " + q[0]] + about(q, 5) + ["A: " + q[1]] + ["- " + w for w in q[2:5]] + [""]
-    for q in pack["picture"]:
-        stem = pack["images"][q[0] - 1]
-        L += ["Q: " + q[1]] + about(q, 6) + ["IMG: " + src.get(stem, stem + ".png"), "A: " + q[2]] + ["- " + w for w in q[3:6]] + [""]
-    with open(a.out, "w", encoding="utf-8") as f:
-        f.write("\n".join(L))
-    print("wrote %s (%d standard + %d picture questions)" % (a.out, len(pack["standard"]), len(pack["picture"])))
+    if a.out.lower().endswith(".zip"):
+        sharing.export_zip(pack, os.path.dirname(os.path.abspath(a.pack)), a.out)
+    else:
+        sharing.export_txt(pack, a.out)
+    print("wrote %s (%d standard, %d picture, %d point stealer questions)" % (
+        a.out, len(pack["standard"]), len(pack["picture"]), len(pack["point_stealer"])))
 
 
 def cmd_generate(a):

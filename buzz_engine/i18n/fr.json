@@ -117,7 +117,7 @@
   "kind.point_stealer": "Rapid-o-buzzer",
 
   "imp.drop": "Dépose des fichiers de quiz ici ou <u>parcourir</u>",
-  "imp.formats": "CSV · texte (Aiken, Q:/A:, OpenTriviaQA, .buzz.txt) · XML (Moodle, quiz en ligne Buzz, générique) · JSON",
+  "imp.formats": "CSV · texte (Aiken, Q:/A:, OpenTriviaQA, .buzz.txt) · XML (Moodle, quiz en ligne Buzz, générique) · JSON · .zip avec images<br>Dépose les images en même temps que le fichier de questions, ou un .zip des deux.",
   "imp.source": "Source en ligne",
   "imp.noncommercial": "non commercial",
   "imp.category": "Catégorie",
@@ -221,6 +221,9 @@
   "g.go": "Générer le PKG",
   "g.publish": "Publier sur MyBuzz (quiz en ligne)",
   "g.publish_help": "Met aussi les questions de ce pack sur ton propre serveur Buzz en quiz en ligne : rien à installer, joue-les depuis MyBuzz.",
+  "g.export": "Exporter pour partager (.zip)",
+  "g.export_help": "Les questions et images du pack dans un .zip que n'importe qui peut importer dans Buzz Pack Studio. Aucune donnée du jeu.",
+  "g.exported": "Exporté : {path}",
   "g.published_one": "{q} questions publiées en {n} quiz en ligne",
   "g.published_other": "{q} questions publiées en {n} quiz en ligne",
   "g.with_voice": "avec la voix du présentateur",
@@ -351,6 +354,13 @@
   ["no (\\w+) host voice on this machine - built without audio", "pas de voix \\1 sur ce PC : construit sans audio"],
   ["^Pack built: (\\d+) files, (\\d+) questions in the main bank, (\\d+) voiced lines$", "Pack construit : \\1 fichiers, \\2 questions dans la banque principale, \\3 lignes lues par la voix"],
   ["^PKG ready: (.*) \\(([\\d.]+) MB\\)$", "PKG prêt : \\1 (\\2 Mo)"],
+  ["^image not found: (.*)$", "image introuvable : \u0001"],
+  ["^image could not be read: (.*)$", "image illisible : \u0001"],
+  ["^image download failed: (.*)$", "échec du téléchargement de l'image : \u0001"],
+  ["^drop the quiz file together with its pictures \\(or a \\.zip of both\\)$", "dépose le fichier de questions avec ses images (ou un .zip des deux)"],
+  ["^no quiz file in the zip \\(CSV, text, XML or JSON\\)$", "aucun fichier de questions dans le zip (CSV, texte, XML ou JSON)"],
+  ["^the zip is too large to import$", "le zip est trop gros pour être importé"],
+  ["^the zip contains an unsafe path: (.*)$", "le zip contient un chemin dangereux : \u0001"],
   ["^FAILED: ", "ÉCHEC : "]
  ]
 }

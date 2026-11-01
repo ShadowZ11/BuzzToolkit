@@ -191,6 +191,31 @@ If you install a PKG by hand, check its number first. The file name ends in it, 
 Example question files are in `examples/`. A `.buzz.txt` file is the easiest way to share a pack
 as plain text (see `examples/pub_quiz.buzz.txt`).
 
+### Pictures in question files
+
+Picture questions and Point Stealer questions (four pictures as the answers) can come from files.
+
+* **Picture question:** one `IMG:` line (text), or an `image` column / key (CSV, JSON).
+* **Point Stealer question:** four `IMG:` lines and no answers; the **first picture is the right
+  answer**. In CSV or JSON: `image1` to `image4` (or `images`), first one right.
+
+  ```
+  Q: Which of these is the flag of Italy?
+  IMG: images/italy.png
+  IMG: images/france.png
+  IMG: images/belgium.png
+  IMG: images/netherlands.png
+  ```
+* A picture can be a web address, or a path **relative to the question file** (`images/italy.png`
+  next to it, or in an `images` folder beside it).
+* In Buzz Pack Studio, **drop the question file together with its pictures**, or a **.zip**
+  holding both. A question whose picture can't be found is skipped and listed with the reason;
+  the rest still imports.
+* **Export to share (.zip)** in step 4 gives a .zip with the questions and pictures that anyone
+  can import (`python -m buzz_engine export pack.json -o pack.zip` on the command line).
+
+`examples/picture_quiz/` is a small example with both kinds (zip that folder, or drop its files).
+
 ### Installing on a real PS3 (untested)
 
 Packs are confirmed on RPCS3 only. They are built the same way as community-made DLC for modified
