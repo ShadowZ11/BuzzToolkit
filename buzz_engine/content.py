@@ -7,6 +7,8 @@ A question (dict):
   correct     right answer (standard/picture)       answers + right[] for all_that_apply
   wrong       3 wrong answers                        images[4] + correct index for point_stealer
   category, difficulty ("easy"|"medium"|"hard"), image (path/URL), source (where it came from)
+  about       optional (standard/picture): subject announced in High Stakes, stored as a trailing
+              {"about": ...} on the pack row
 """
 import hashlib
 import html
@@ -16,6 +18,7 @@ import shutil
 import unicodedata
 
 MAX_Q, MAX_A = 93, 30          # longest question / answer the pack builder accepts (retail layout)
+MAX_ABOUT = 60                 # leaves room for the longest intro template
 DIFFICULTY = {"easy": 1, "medium": 2, "hard": 3, "1": 1, "2": 2, "3": 3}
 CATEGORIES = ["Knowledge", "TVCinema", "Lifestyle", "Music"]     # menu channels a pack sits in
 
@@ -132,6 +135,10 @@ def normalise(q, uppercase=False):
         q["answers"] = [clean(a, uppercase) for a in q.get("answers", [])]
     if q.get("difficulty") is not None:
         q["difficulty"] = {1: "easy", 2: "medium", 3: "hard"}.get(DIFFICULTY.get(str(q["difficulty"]).lower()), None)
+    if q.get("about"):
+        q["about"] = clean(q["about"], True)
+    else:
+        q.pop("about", None)
     return q
 
 
@@ -154,6 +161,8 @@ def problems(q):
             p.append("duplicate answers")
         if q["kind"] == "picture" and not q.get("image"):
             p.append("picture question without an image")
+        if len(q.get("about") or "") > MAX_ABOUT and q["about"][-1] not in "!?.;":
+            p.append("announced subject longer than %d characters" % MAX_ABOUT)
     elif q["kind"] == "all_that_apply":
         if len(q.get("answers", [])) != 4 or len(q.get("right", [])) != 4:
             p.append("all-that-apply needs 4 answers with right/wrong flags")
@@ -251,10 +260,11 @@ def add_to_pack(pack, questions, pack_dir):
         if c and c not in credits:
             credits.append(c)
         k = q["kind"]
+        meta = [{"about": q["about"]}] if q.get("about") else []
         if k == "standard":
-            pack["standard"].append([q["question"], q["correct"]] + q["wrong"][:3])
+            pack["standard"].append([q["question"], q["correct"]] + q["wrong"][:3] + meta)
         elif k == "picture":
-            pack["picture"].append([image_no(q["image"]), q["question"], q["correct"]] + q["wrong"][:3])
+            pack["picture"].append([image_no(q["image"]), q["question"], q["correct"]] + q["wrong"][:3] + meta)
         elif k == "all_that_apply":
             pack["all_that_apply"].append([q["question"]] + [[a, bool(r)] for a, r in zip(q["answers"], q["right"])])
         elif k == "point_stealer":

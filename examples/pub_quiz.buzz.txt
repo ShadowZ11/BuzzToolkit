@@ -4,12 +4,14 @@
 #AUTHOR:Handylemons
 #ROUNDS4P:Point Builder, random(Pie Fight|Pass the Bomb), Over the Edge
 Q: What is the chemical symbol for gold?
+S: chemistry
 A: Au
 - Ag
 - Gd
 - Go
 
 Q: How many players are in a football team on the pitch?
+S: sport
 A: Eleven
 - Ten
 - Nine

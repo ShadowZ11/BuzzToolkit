@@ -1,3 +1,23 @@
+# Unreleased
+
+## High Stakes says what each question is about
+* **Fixed: High Stakes announced every question in English**, with the pack's name
+  ("HERE'S A QUESTION ON …") whatever the pack's language.
+* Each question can now have its own **announced subject**, like the retail game: *"Here's a
+  question on a song from the 2010s. Place your bets!"*. The sentence comes in the pack's
+  language (all 12 pack languages), with three wordings in turn.
+* Without one, the pack's theme is announced, in the pack's language.
+* Set it while writing a question (with a preview), for many questions at once under **All
+  questions**, or in files: CSV column `about`/`sujet`, JSON key `about`, `S:` line in text files.
+  `.buzz.txt` export keeps it.
+
+## Buzz! Quiz TV
+* Documented: packs also play on Buzz! Quiz TV, since they install into its download folder. The
+  README lists what works there.
+
+## Tests
+* First pytest suite in `tests/`: `pip install -r requirements-dev.txt`, then `python -m pytest tests`.
+
 # Buzz Toolkit 0.1.5
 
 **Czech and Croatian packs now have a host voice, every language on the three discs can be

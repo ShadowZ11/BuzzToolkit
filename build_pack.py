@@ -72,9 +72,102 @@ DLC_TITLE = "BCES00098"
 # comfortable target for hand-written packs, but imported content gets the full range.
 MAX_Q, MAX_A = 115, 40
 SUBJECT_ID = 115                       # question category item defined by questioncategories.clu
-INTROS = ["HERE'S A QUESTION ON %s. PLACE YOUR BETS!",
-          "THIS ONE'S ON %s. WHAT WILL YOU BET?",
-          "NEXT UP IS A QUESTION ON %s. HOW MUCH ARE YOU PREPARED TO RISK?"]
+# High Stakes intro line (string role 2) per pack language. "theme" is used when a question has no
+# announced subject. Slavic and Greek templates use "QUESTION: %s" so the text needs no declension.
+INTROS = {
+    "GBR": {"about": ["HERE'S A QUESTION ON %s. PLACE YOUR BETS!",
+                      "THIS ONE'S ON %s. WHAT WILL YOU BET?",
+                      "NEXT UP IS A QUESTION ON %s. HOW MUCH ARE YOU PREPARED TO RISK?"]},
+    "FRA": {"about": ["LA PROCHAINE QUESTION PORTE SUR %s. FAITES VOS JEUX !",
+                      "CETTE QUESTION PORTERA SUR %s. COMBIEN MISEZ-VOUS ?",
+                      "VOICI UNE QUESTION SUR %s. JUSQU'OÙ IREZ-VOUS ?"],
+            "theme": ["THÈME : %s. FAITES VOS JEUX !",
+                      "PROCHAINE QUESTION, THÈME : %s. COMBIEN MISEZ-VOUS ?",
+                      "LE THÈME EST : %s. JUSQU'OÙ IREZ-VOUS ?"]},
+    "ESP": {"about": ["LA SIGUIENTE PREGUNTA ES SOBRE %s. ¡HAGAN SUS APUESTAS!",
+                      "ESTA PREGUNTA TRATA SOBRE %s. ¿CUÁNTO VAS A APOSTAR?",
+                      "AHORA, UNA PREGUNTA SOBRE %s. ¿CUÁNTO TE ARRIESGAS?"],
+            "theme": ["TEMA: %s. ¡HAGAN SUS APUESTAS!",
+                      "SIGUIENTE PREGUNTA, TEMA: %s. ¿CUÁNTO VAS A APOSTAR?",
+                      "EL TEMA ES: %s. ¿CUÁNTO TE ARRIESGAS?"]},
+    "PRT": {"about": ["A PRÓXIMA PERGUNTA É SOBRE %s. FAÇAM AS VOSSAS APOSTAS!",
+                      "ESTA PERGUNTA É SOBRE %s. QUANTO VAI APOSTAR?",
+                      "AGORA, UMA PERGUNTA SOBRE %s. QUANTO QUER ARRISCAR?"],
+            "theme": ["TEMA: %s. FAÇAM AS VOSSAS APOSTAS!",
+                      "PRÓXIMA PERGUNTA, TEMA: %s. QUANTO VAI APOSTAR?",
+                      "O TEMA É: %s. QUANTO QUER ARRISCAR?"]},
+    "DEU": {"about": ["DIE NÄCHSTE FRAGE DREHT SICH UM %s. MACHEN SIE IHRE EINSÄTZE!",
+                      "IN DIESER FRAGE GEHT ES UM %s. WIE VIEL SETZEN SIE?",
+                      "JETZT EINE FRAGE ZU %s. WIE VIEL WOLLEN SIE RISKIEREN?"],
+            "theme": ["THEMA: %s. MACHEN SIE IHRE EINSÄTZE!",
+                      "NÄCHSTE FRAGE, THEMA: %s. WIE VIEL SETZEN SIE?",
+                      "DAS THEMA IST: %s. WIE VIEL WOLLEN SIE RISKIEREN?"]},
+    "ITA": {"about": ["LA PROSSIMA DOMANDA RIGUARDA %s. FATE IL VOSTRO GIOCO!",
+                      "QUESTA DOMANDA PARLA DI %s. QUANTO VUOI PUNTARE?",
+                      "ORA UNA DOMANDA SU %s. QUANTO VUOI RISCHIARE?"],
+            "theme": ["ARGOMENTO: %s. FATE IL VOSTRO GIOCO!",
+                      "PROSSIMA DOMANDA, ARGOMENTO: %s. QUANTO VUOI PUNTARE?",
+                      "L'ARGOMENTO È: %s. QUANTO VUOI RISCHIARE?"]},
+    "NLD": {"about": ["DE VOLGENDE VRAAG GAAT OVER %s. PLAATS JE INZET!",
+                      "DEZE VRAAG GAAT OVER %s. HOEVEEL ZET JE IN?",
+                      "NU EEN VRAAG OVER %s. HOEVEEL DURF JE TE RISKEREN?"],
+            "theme": ["ONDERWERP: %s. PLAATS JE INZET!",
+                      "VOLGENDE VRAAG, ONDERWERP: %s. HOEVEEL ZET JE IN?",
+                      "HET ONDERWERP IS: %s. HOEVEEL DURF JE TE RISKEREN?"]},
+    "POL": {"about": ["NASTĘPNE PYTANIE: %s. OBSTAWIAJCIE!",
+                      "TERAZ PYTANIE: %s. ILE STAWIASZ?",
+                      "UWAGA, PYTANIE: %s. ILE ZARYZYKUJESZ?"],
+            "theme": ["TEMAT: %s. OBSTAWIAJCIE!",
+                      "KOLEJNE PYTANIE, TEMAT: %s. ILE STAWIASZ?",
+                      "TEMAT PYTANIA: %s. ILE ZARYZYKUJESZ?"]},
+    "CZE": {"about": ["DALŠÍ OTÁZKA: %s. VSAĎTE SI!",
+                      "TEĎ PŘIJDE OTÁZKA: %s. KOLIK VSADÍTE?",
+                      "POZOR, OTÁZKA: %s. KOLIK RISKNETE?"],
+            "theme": ["TÉMA: %s. VSAĎTE SI!",
+                      "DALŠÍ OTÁZKA, TÉMA: %s. KOLIK VSADÍTE?",
+                      "TÉMA OTÁZKY: %s. KOLIK RISKNETE?"]},
+    "CRO": {"about": ["SLJEDEĆE PITANJE: %s. POLOŽITE OKLADE!",
+                      "SADA PITANJE: %s. KOLIKO ULAŽETE?",
+                      "PAŽNJA, PITANJE: %s. KOLIKO RISKIRATE?"],
+            "theme": ["TEMA: %s. POLOŽITE OKLADE!",
+                      "SLJEDEĆE PITANJE, TEMA: %s. KOLIKO ULAŽETE?",
+                      "TEMA PITANJA: %s. KOLIKO RISKIRATE?"]},
+    "RUS": {"about": ["СЛЕДУЮЩИЙ ВОПРОС: %s. ДЕЛАЙТЕ СТАВКИ!",
+                      "А ТЕПЕРЬ ВОПРОС: %s. СКОЛЬКО ПОСТАВИТЕ?",
+                      "ВНИМАНИЕ, ВОПРОС: %s. СКОЛЬКО ВЫ ГОТОВЫ РИСКНУТЬ?"],
+            "theme": ["ТЕМА: %s. ДЕЛАЙТЕ СТАВКИ!",
+                      "СЛЕДУЮЩИЙ ВОПРОС, ТЕМА: %s. СКОЛЬКО ПОСТАВИТЕ?",
+                      "ТЕМА ВОПРОСА: %s. СКОЛЬКО ВЫ ГОТОВЫ РИСКНУТЬ?"]},
+    "GRC": {"about": ["ΕΠΟΜΕΝΗ ΕΡΩΤΗΣΗ: %s. ΠΟΝΤΑΡΕΤΕ!",
+                      "ΤΩΡΑ ΜΙΑ ΕΡΩΤΗΣΗ: %s. ΠΟΣΑ ΠΟΝΤΑΡΕΤΕ;",
+                      "ΠΡΟΣΟΧΗ, ΕΡΩΤΗΣΗ: %s. ΠΟΣΑ ΘΑ ΡΙΣΚΑΡΕΤΕ;"],
+            "theme": ["ΘΕΜΑ: %s. ΠΟΝΤΑΡΕΤΕ!",
+                      "ΕΠΟΜΕΝΗ ΕΡΩΤΗΣΗ, ΘΕΜΑ: %s. ΠΟΣΑ ΠΟΝΤΑΡΕΤΕ;",
+                      "ΘΕΜΑ ΕΡΩΤΗΣΗΣ: %s. ΠΟΣΑ ΘΑ ΡΙΣΚΑΡΕΤΕ;"]},
+}
+
+
+def intro_line(lang, k, about=None, theme=""):
+    """An `about` ending in ! ? . or ; (Greek "?") is used as the whole line."""
+    about = (about or "").strip().upper()
+    if about and about[-1] in "!?.;":
+        return about[:MAX_Q]
+    t = INTROS.get((lang or "").upper(), INTROS["GBR"])
+    kind = "about" if about else "theme"
+    choices = t.get(kind) or t["about"]
+    fill = about or (theme or "").strip().upper()
+    order = choices[k % len(choices):] + choices[:k % len(choices)]
+    for c in order:
+        s = c % fill
+        if len(s) <= MAX_Q:
+            return s
+    return fill[:MAX_Q]
+
+
+def row_meta(row, n):
+    return row[n] if len(row) > n and isinstance(row[n], dict) else {}
+
+
 # round file -> (package number in roundpackages, round type tag) - retail order
 ROUNDS = [("stoptheclock", 1), ("passthebomb", 2), ("piefight", 3), ("highstakes", 4),
           ("pointstealer", 5), ("finalcountdown", 6), ("fastestfinger", 7), ("allthatapply", 8),
@@ -354,6 +447,8 @@ def build(content_path, overrides=None):
     ata = [[check(x[0], MAX_Q, "question")] + [(check(a, MAX_A, "answer"), bool(t)) for a, t in x[1:5]]
            for x in C["all_that_apply"]]
     pst = [[check(x[0], MAX_Q, "question")] + [int(p) for p in x[1:5]] for x in C["point_stealer"]]
+    std_about = [row_meta(x, 5).get("about") for x in C["standard"]]
+    pic_about = [row_meta(x, 6).get("about") for x in C["picture"]]
     files = {}
     lang = C.get("language", LANG).upper()
     if not (len(lang) == 3 and lang.isalpha()):
@@ -389,11 +484,11 @@ def build(content_path, overrides=None):
     for k, (kind, b) in enumerate(order):
         if kind == "standard":
             q = std[b]
-            strs = [q[0], INTROS[k % 3] % topic] + q[1:5]
+            strs = [q[0], intro_line(lang, k, std_about[b], topic)] + q[1:5]
             tags = TEXT_TAGS
         else:
             q = pic[b]
-            strs = [q[1], INTROS[k % 3] % topic] + q[2:6]
+            strs = [q[1], intro_line(lang, k, pic_about[b], topic)] + q[2:6]
             tags = PIC_TAGS
         bank.append({"kind": kind, "item": b, "strings": strs, "speech": speech_for((kind, b)),
                      "answers": [(0, 5), (1, 1), (2, 1), (3, 1)], "tags": tags,

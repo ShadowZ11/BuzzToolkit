@@ -1,4 +1,5 @@
 # created on each user's machine - never commit
+.idea
 tools/venv/
 tools/clone_venv/
 tools/tts_venv/

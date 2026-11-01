@@ -1,7 +1,8 @@
 # Buzz Toolkit 0.1.5
 
 Make your own quiz packs for **Buzz! Quiz World** (PS3, BCES00645) and host your own Buzz! online
-server, for playing on RPCS3 or a modded PS3.
+server, for playing on RPCS3 or a modded PS3. Packs also play on **Buzz! Quiz TV** (see
+[Buzz! Quiz TV](#buzz-quiz-tv)).
 
 Two halves, one app (**Buzz Pack Studio**):
 
@@ -111,6 +112,33 @@ You're ready to make packs. From now on, just double-click **Start Buzz Pack Stu
 5. **Generate**: builds the pack and a `.pkg`. Install it in RPCS3 with
    **File → Install Packages/Raps/Edats** (or press *Copy straight into RPCS3*).
 
+### High Stakes: saying what each question is about
+
+Before each question in **High Stakes**, the game says what the question is about so players can
+place their bets, for example *"Here's a question on a song from the 2010s. Place your bets!"*.
+Each question carries its own line, in the pack's language.
+
+* Give a question an **announced subject** (up to 60 characters, e.g. `a song from the 2010s`,
+  `a milestone in music history`). The app puts it in a sentence in the pack's language and shows
+  a preview.
+* End it with `!`, `?` or `.` to write the **whole sentence** yourself.
+* Leave it empty and the game announces the pack's theme instead.
+* Set it while writing a question, or tick several questions under **All questions** and apply one
+  subject to all of them.
+* In files: a CSV column `about` (or `sujet`), a JSON key `about`, or an `S:` line in a
+  `Q:`/`A:` text file:
+
+  ```
+  Q: Who sang Rolling in the Deep?
+  S: a song from the 2010s
+  A: Adele
+  - Duffy
+  - Lorde
+  - Sia
+  ```
+
+The line is shown on screen; the host reads the question itself.
+
 ### Pack numbers
 
 Every pack has a number (1 to 999), and **no two packs can share one**. The game keeps each pack in
@@ -192,6 +220,22 @@ can't find any packs there.
 
 Please report what you see: console model, firmware with HEN or CFW name and version, disc ID, the
 game's language, the step that failed, and any error code shown (for example `8002xxxx`).
+
+## Buzz! Quiz TV
+
+Packs also play on **Buzz! Quiz TV**. Quiz World keeps its downloadable packs in a shared
+*Buzz!: Quiz TV* folder (`BCES00098`), so a pack installed for Quiz World is in Quiz TV's own
+download folder too. Make the pack in the language your Quiz TV runs in, and install it as usual.
+
+| | Quiz World | Quiz TV |
+|---|---|---|
+| Packs: questions, pictures, host voice | Yes | Yes |
+| High Stakes subject lines | Yes | Yes |
+| Custom running orders (Pack Game menu) | Yes | No (changes Quiz World's own scripts) |
+| 60 FPS patch, online server | Yes | No |
+
+The toolkit is built and tested on Quiz World. Quiz TV works because both games use the same pack
+format; it has not been tested as thoroughly.
 
 ## Rounds and running orders
 

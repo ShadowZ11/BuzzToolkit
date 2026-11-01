@@ -30,6 +30,12 @@
 4. **More languages for the trained voice** (trainer `--lang`, multilingual base model).
 5. **Online matches**: live games against remote friends (the Medius lobby / game-room stage the
    game never reaches today).
+6. **Pack themes**: theme names separate from the pack title, several themes in one pack (one
+   subject per theme in the "choose a subject" step), and, if the game allows it, adding a pack's
+   questions to one of the disc's own themes.
+7. **Buzz Pack Studio in several languages** (French and English first, translation files for more).
+8. **Buzz! Quiz TV, natively** (later, if wanted): packs already play there. Custom running orders,
+   60 FPS and online would need Quiz TV's own scripts and code to be studied.
 
 ## New question and round formats
 

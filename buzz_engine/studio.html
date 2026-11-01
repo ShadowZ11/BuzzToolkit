@@ -149,6 +149,16 @@ async function api(path, body){
   const r = await fetch(path, body===undefined?{}:{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
   const j = await r.json(); if(!r.ok || j.error){toast(j.error||"Something went wrong", true); throw new Error(j.error);} return j;
 }
+// mirrors build_pack.intro_line
+function introLine(about, k=0){
+  about = (about||"").trim().toUpperCase();
+  const max = S.max_q_full || 115;
+  if(about && "!?.;".includes(about.slice(-1))) return about.slice(0, max);
+  const t = S.intros[P.language] || S.intros.GBR;
+  const ch = (about ? t.about : (t.theme || t.about)), fill = about || (P.topic||"").toUpperCase();
+  for(let j=0;j<ch.length;j++){ const s = ch[(k+j)%ch.length].replace("%s", fill); if(s.length<=max) return s; }
+  return fill.slice(0, max);
+}
 const readFile = f => new Promise(res=>{const r=new FileReader();r.onload=()=>res({name:f.name,data:r.result});r.readAsDataURL(f);});
 
 async function loadState(){ S = await api("/api/state"); renderSide(); }
@@ -165,6 +175,7 @@ function renderSide(){
   if (gb) gb.innerHTML = !S.rpcs3 ? "" : (S.games && S.games.length)
     ? S.games.map(g=>`<span class="pill ok">${esc(g.name)}</span>`).join(" ")
     : `<div class="muted" style="font-size:.8rem">No Buzz DLC folder in this RPCS3 yet - it is created when you send a pack.</div>`;
+  if (gb && S.rpcs3) gb.innerHTML += `<div class="muted" style="font-size:.8rem">Packs also play on <b>Buzz! Quiz TV</b>: they install into its download folder.</div>`;
   $("#updbox").innerHTML = !S.rpcs3 ? "" : U.ok ? `<span class="pill ok">Game update ${esc(U.want)} installed</span>` :
     `<div class="warn" style="font-size:.85rem">Game update ${esc(U.want)} ${U.installed ? "needed (you have " + esc(U.installed) + ")" : "not installed"}. The toolkit is built on it.</div>` +
     (U.downloaded ? `<button class="btn small" id="updinst">Install update into RPCS3</button><div class="muted" style="font-size:.8rem">Close RPCS3 first. RPCS3's own installer opens; when it's done, press Save folder to re-check.</div>`
@@ -304,20 +315,37 @@ function renderQ(){
       const ata = addKind==="all_that_apply";
       ab.innerHTML = (addKind==="picture"?`<label class="f">Picture (shown with the question)<input type="file" accept="image/*" id="aimg"></label>`:"") +
         `<div class="muted">${ata?"Tick every right answer.":"The first (blue) answer is the right one; the game shuffles them."}</div>
-        <div class="answers">${[0,1,2,3].map(i=>`<label class="ans ${!ata&&i===0?"correct":""}"><span class="dot d${i}"></span>${ata?`<input type="checkbox" id="ar${i}">`:""}<input type="text" id="aa${i}" placeholder="${!ata&&i===0?"Right answer":"Answer"}"><span class="cnt" id="ac${i}"></span></label>`).join("")}</div>`;
+        <div class="answers">${[0,1,2,3].map(i=>`<label class="ans ${!ata&&i===0?"correct":""}"><span class="dot d${i}"></span>${ata?`<input type="checkbox" id="ar${i}">`:""}<input type="text" id="aa${i}" placeholder="${!ata&&i===0?"Right answer":"Answer"}"><span class="cnt" id="ac${i}"></span></label>`).join("")}</div>` +
+        (ata ? "" : `<label class="f">Announced subject (High Stakes) <span class="cnt" id="abcnt"></span><input type="text" id="aabout" maxlength="115" placeholder="optional, e.g. a song from the 2010s"></label>
+        <div class="muted" style="font-size:.82rem">Before each High Stakes question the game says what it is about. Leave empty to announce the pack's theme. End with ! ? or . to write the whole sentence yourself.<br>Preview: <b id="abprev"></b></div>`);
       [0,1,2,3].forEach(i=>counter($("#aa"+i),$("#ac"+i),30));
+      const abi = $("#aabout");
+      if(abi){ const u=()=>{ $("#abprev").textContent = introLine(abi.value); const n=abi.value.length, full="!?.;".includes(abi.value.trim().slice(-1)); $("#abcnt").textContent = full ? `${n}/${S.max_q_full}` : `${n}/${S.max_about}`; $("#abcnt").classList.toggle("over", n > (full?S.max_q_full:S.max_about)); }; abi.oninput=u; u(); }
     }
     $("#addgo").onclick=addQuestion;
   } else {
     const rows = P.questions.filter(q=>qfilter==="all"||q.kind===qfilter);
+    const canAbout = q => q.kind==="standard"||q.kind==="picture";
     b.innerHTML = `<div class="row">${["all",...Object.keys(KINDS)].map(k=>`<button class="chip ${qfilter===k?"on":""}" data-f="${k}">${k==="all"?"All":KINDS[k]} (${k==="all"?P.questions.length:P.counts[k]})</button>`).join("")}</div>
-      <div class="qwrap"><table class="qtable"><thead><tr><th>Type</th><th>Question</th><th>Answers</th><th></th></tr></thead><tbody>${
-      rows.length ? rows.map(q=>`<tr><td><span class="pill ${q.kind==="standard"?"ok":"low"}">${KINDS[q.kind]}</span></td><td>${q.img?`<img src="/img?id=${P.id}&name=${q.img}" alt="">`:""}${esc(q.q)}</td><td class="a">${
+      <div class="row" style="align-items:end">
+        <label class="f" style="flex:1">Announced subject for the ticked questions (High Stakes)<input type="text" id="bulkabout" maxlength="115" placeholder="e.g. a song from the 2010s (empty = announce the pack's theme)"></label>
+        <button class="btn small" id="bulkall">Tick all shown</button>
+        <button class="btn primary small" id="bulkgo">Apply</button>
+      </div>
+      <div class="qwrap"><table class="qtable"><thead><tr><th></th><th>Type</th><th>Question</th><th>Answers</th><th></th></tr></thead><tbody>${
+      rows.length ? rows.map(q=>`<tr><td>${canAbout(q)?`<input type="checkbox" class="qsel" data-k="${q.kind}" data-i="${q.i}" aria-label="Select">`:""}</td><td><span class="pill ${q.kind==="standard"?"ok":"low"}">${KINDS[q.kind]}</span></td><td>${q.img?`<img src="/img?id=${P.id}&name=${q.img}" alt="">`:""}${esc(q.q)}${canAbout(q)?`<div class="muted" style="font-size:.78rem" title="${esc(introLine(q.about))}">${q.about?"Subject: "+esc(q.about):"Subject: pack theme"}</div>`:""}</td><td class="a">${
         q.kind==="point_stealer" ? q.imgs.map(n=>`<img src="/img?id=${P.id}&name=${n}" alt="">`).join("") :
         q.kind==="all_that_apply" ? q.a.map((a,i)=>`<span style="${q.right[i]?"color:var(--ok);font-weight:600":"color:var(--muted);font-weight:400"}">${esc(a)}</span>`).join("") :
         q.a.map(a=>`<span>${esc(a)}</span>`).join("")}</td><td><button class="btn small" data-del="${q.kind}:${q.i}" aria-label="Delete">✕</button></td></tr>`).join("")
-      : `<tr><td colspan="4" class="muted">No questions yet.</td></tr>`}</tbody></table></div>`;
+      : `<tr><td colspan="5" class="muted">No questions yet.</td></tr>`}</tbody></table></div>`;
     b.querySelectorAll("[data-f]").forEach(c=>c.onclick=()=>{qfilter=c.dataset.f;renderQ();});
+    $("#bulkall").onclick=()=>{ const boxes=[...b.querySelectorAll(".qsel")]; const on=!boxes.every(x=>x.checked); boxes.forEach(x=>x.checked=on); };
+    $("#bulkgo").onclick=async()=>{
+      const items=[...b.querySelectorAll(".qsel:checked")].map(x=>({kind:x.dataset.k,i:+x.dataset.i}));
+      if(!items.length) return toast("Tick the questions first",true);
+      const r = await api("/api/about",{id:P.id, about:$("#bulkabout").value.trim(), items});
+      P = r; toast(`Subject set on ${r.changed} question${r.changed>1?"s":""}`); renderQ();
+    };
     b.querySelectorAll("[data-del]").forEach(d=>d.onclick=async()=>{const [k,i]=d.dataset.del.split(":"); P=await api("/api/delete",{id:P.id,kind:k,i:+i}); renderQ(); renderRoundsStatus(); head();});
   }
 }
@@ -339,6 +367,7 @@ async function addQuestion(){
     body.correct = +document.querySelector("input[name=psc]:checked").value;
   } else {
     body.answers=[0,1,2,3].map(i=>$("#aa"+i).value.trim());
+    if($("#aabout")) body.about=$("#aabout").value.trim();
     if(addKind==="all_that_apply") body.right=[0,1,2,3].map(i=>$("#ar"+i).checked);
     if(addKind==="picture"){ const f=$("#aimg").files[0]; if(!f) return toast("Choose a picture",true); body.image=await readFile(f); }
   }

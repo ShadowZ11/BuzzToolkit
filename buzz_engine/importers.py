@@ -176,11 +176,15 @@ def parse_json(data):
     if isinstance(data, dict) and "results" in data:
         return parse_opentdb(data)
     if isinstance(data, dict) and "standard" in data:                 # our pack JSON
-        out = [{"question": x[0], "correct": x[1], "wrong": x[2:5], "source": "pack"} for x in data["standard"]]
+        def about(x, n):
+            return {"about": x[n]["about"]} if len(x) > n and isinstance(x[n], dict) and x[n].get("about") else {}
+        out = [dict({"question": x[0], "correct": x[1], "wrong": x[2:5], "source": "pack"}, **about(x, 5))
+               for x in data["standard"]]
         img = data.get("images", [])
         base = data.get("_dir", ".")
-        out += [{"kind": "picture", "image": os.path.join(base, "images", img[x[0] - 1] + ".png"),
-                 "question": x[1], "correct": x[2], "wrong": x[3:6], "source": "pack"} for x in data.get("picture", [])]
+        out += [dict({"kind": "picture", "image": os.path.join(base, "images", img[x[0] - 1] + ".png"),
+                      "question": x[1], "correct": x[2], "wrong": x[3:6], "source": "pack"}, **about(x, 6))
+                for x in data.get("picture", [])]
         out += [{"kind": "all_that_apply", "question": x[0], "answers": [a for a, _ in x[1:5]],
                  "right": [bool(t) for _, t in x[1:5]], "source": "pack"} for x in data.get("all_that_apply", [])]
         return out
@@ -223,7 +227,8 @@ def _from_record(r):
         wrong = [o for o in opts if o != c]
     out = {"question": q, "correct": c, "wrong": list(wrong or [])[:3], "source": "record"}
     for k, names in (("category", ["category", "topic", "subject"]), ("difficulty", ["difficulty", "level"]),
-                     ("image", ["image", "picture", "img", "image_url", "photo"])):
+                     ("image", ["image", "picture", "img", "image_url", "photo"]),
+                     ("about", ["about", "sujet", "announce", "annonce", "intro", "sujet_annonce"])):
         v = _pick(r, names)
         if v:
             out[k] = v
@@ -277,6 +282,8 @@ def parse_text(text):
                 cur["wrong"].append(s[2:].strip())
             elif cur and re.match(r"^(IMG|IMAGE|PIC)[:.]\s", s, re.I):
                 cur["image"], cur["kind"] = s.split(":", 1)[1].strip(), "picture"
+            elif cur and re.match(r"^S[:.]\s", s, re.I):
+                cur["about"] = s[2:].strip()
         if cur:
             out.append(cur)
         return out

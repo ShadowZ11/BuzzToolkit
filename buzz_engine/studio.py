@@ -118,14 +118,16 @@ def project_view(pid):
                               "state": "ok" if n >= info["min"] else ("low" if n else "none")})
     qs = []
     for i, q in enumerate(pack["standard"]):
-        qs.append({"kind": "standard", "i": i, "q": q[0], "a": q[1:5]})
+        qs.append({"kind": "standard", "i": i, "q": q[0], "a": q[1:5], "about": build_pack.row_meta(q, 5).get("about", "")})
     for i, q in enumerate(pack["picture"]):
-        qs.append({"kind": "picture", "i": i, "q": q[1], "a": q[2:6], "img": pack["images"][q[0] - 1]})
+        qs.append({"kind": "picture", "i": i, "q": q[1], "a": q[2:6], "img": pack["images"][q[0] - 1],
+                   "about": build_pack.row_meta(q, 6).get("about", "")})
     for i, q in enumerate(pack["all_that_apply"]):
         qs.append({"kind": "all_that_apply", "i": i, "q": q[0], "a": [a for a, _ in q[1:5]], "right": [bool(t) for _, t in q[1:5]]})
     for i, q in enumerate(pack["point_stealer"]):
         qs.append({"kind": "point_stealer", "i": i, "q": q[0], "imgs": [pack["images"][n - 1] for n in q[1:5]]})
     return {"id": pid, "title": pack["text"]["menu_name"], "description": pack["text"]["description"],
+            "topic": pack.get("topic", pack["text"]["menu_name"]),
             "number": pack["pack_number"], "category": pack["category"], "language": pack.get("language", "GBR"),
             "audio": pack.get("audio", True), "author": pack.get("author", ""), "uppercase": pack.get("uppercase", True),
             "rounds4p": lineup_text(pack.get("rounds", {}).get("4p")), "rounds8p": lineup_text(pack.get("rounds", {}).get("8p")),
@@ -163,6 +165,7 @@ def state():
     import buzz_tools
     return {"ffmpeg": buzz_tools.find_ffmpeg(), "version": __version__, "keys_ready": bool(k.get("klic") and k.get("svomac_salt")), "projects": projects, "languages": langs, "voices": vs, "categories": content.CATEGORIES,
             "round_types": [{"type": k, "name": v["name"], "uses": v["uses"]} for k, v in rounds.selectable().items()],
+            "intros": build_pack.INTROS, "max_about": content.MAX_ABOUT, "max_q_full": build_pack.MAX_Q,
             "presets": {k: lineup_text(v) for k, v in PRESETS.items()}, "rpcs3": settings().get("rpcs3", ""),
             "hook": hook_installed(), "free_number": free_number(),
             "update": game_update.status(settings().get("rpcs3")),
@@ -267,6 +270,8 @@ def act_add(a):
     q = {"kind": a["kind"], "question": a["question"], "source": "manual"}
     if a["kind"] in ("standard", "picture"):
         q["correct"], q["wrong"] = a["answers"][0], a["answers"][1:4]
+        if (a.get("about") or "").strip():
+            q["about"] = a["about"]
         if a["kind"] == "picture":
             q["image"] = save_upload(a["id"], a["image"]["name"], a["image"]["data"])
     elif a["kind"] == "all_that_apply":
@@ -281,6 +286,29 @@ def act_add(a):
     content.add_to_pack(pack, kept, os.path.dirname(project_path(a["id"])))
     save(a["id"], pack)
     return project_view(a["id"])
+
+
+def act_about(a):
+    text = content.clean(a.get("about") or "", True)
+    if len(text) > content.MAX_ABOUT and text[-1:] not in ("!", "?", ".", ";"):
+        raise ValueError("announced subject longer than %d characters" % content.MAX_ABOUT)
+    pack = load(a["id"])
+    n = 0
+    for it in a.get("items", []):
+        kind, i = it["kind"], int(it["i"])
+        if kind not in ("standard", "picture") or not 0 <= i < len(pack[kind]):
+            continue
+        base = 5 if kind == "standard" else 6
+        row = pack[kind][i][:base]
+        meta = dict(build_pack.row_meta(pack[kind][i], base))
+        if text:
+            meta["about"] = text
+        else:
+            meta.pop("about", None)
+        pack[kind][i] = row + ([meta] if meta else [])
+        n += 1
+    save(a["id"], pack)
+    return dict(project_view(a["id"]), changed=n)
 
 
 def act_delete(a):
@@ -427,6 +455,7 @@ def act_setup_pc(a):
 
 
 ACTIONS = {"new": act_new, "save": act_save, "import": act_import, "add": act_add, "delete": act_delete,
+           "about": act_about,
            "generate": act_generate, "install": act_install, "settings": act_settings, "hook": act_hook,
            "open": act_open, "opentdb": act_opentdb, "publish": act_publish, "server": act_server,
            "catalog": act_catalog, "setup_pc": act_setup_pc, "keys": act_keys, "ffmpeg": act_ffmpeg,

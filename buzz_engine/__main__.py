@@ -215,11 +215,16 @@ def cmd_export(a):
     for c in pack.get("credits", []):
         L.append("#CREDIT:%s" % c)
     L.append("")
+    from build_pack import row_meta
+
+    def about(q, n):
+        s = row_meta(q, n).get("about")
+        return ["S: " + s] if s else []
     for q in pack["standard"]:
-        L += ["Q: " + q[0], "A: " + q[1]] + ["- " + w for w in q[2:5]] + [""]
+        L += ["Q: " + q[0]] + about(q, 5) + ["A: " + q[1]] + ["- " + w for w in q[2:5]] + [""]
     for q in pack["picture"]:
         stem = pack["images"][q[0] - 1]
-        L += ["Q: " + q[1], "IMG: " + src.get(stem, stem + ".png"), "A: " + q[2]] + ["- " + w for w in q[3:6]] + [""]
+        L += ["Q: " + q[1]] + about(q, 6) + ["IMG: " + src.get(stem, stem + ".png"), "A: " + q[2]] + ["- " + w for w in q[3:6]] + [""]
     with open(a.out, "w", encoding="utf-8") as f:
         f.write("\n".join(L))
     print("wrote %s (%d standard + %d picture questions)" % (a.out, len(pack["standard"]), len(pack["picture"])))
